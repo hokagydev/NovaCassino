@@ -1,34 +1,36 @@
 plugins {
-    java
+    id 'java'
 }
 
-group = "dev.hokagy"
-version = "1.beta"
+group = 'dev.hokagy'
+version = '1.0.0'
 
 repositories {
     mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/")
-}
-
-dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
-}
-
-val targetJavaVersion = 21
-java {
-    val version = JavaVersion.toVersion(targetJavaVersion)
-    sourceCompatibility = version
-    targetCompatibility = version
-    if (JavaVersion.current() < version) {
-        toolchain.languageVersion.set(JavaLanguageVersion.of(targetJavaVersion))
+    maven {
+        url = 'https://repo.papermc.io/repository/maven-public/'
     }
 }
 
-tasks.withType<JavaCompile> {
-    options.encoding = "UTF-8"
-    options.release.set(targetJavaVersion)
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
 }
 
-tasks.jar {
-    archiveFileName.set("NovaCassino-${project.version}.jar")
+def targetJavaVersion = 21
+java {
+    def version = JavaVersion.toVersion(targetJavaVersion)
+    sourceCompatibility = version
+    targetCompatibility = version
+    if (JavaVersion.current() < version) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = targetJavaVersion
+}
+
+tasks.named('jar', Jar) {
+    archiveFileName = "NovaCassino-${project.version}.jar"
 }
