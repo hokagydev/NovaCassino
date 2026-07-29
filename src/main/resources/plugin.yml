@@ -3,10 +3,32 @@ version: 1.0.0
 main: dev.hokagy.novacassino.NovaCassino
 api-version: '1.21'
 author: Hokagydev
-description: hokagydev
+softdepend: [Vault]
+description: Продвинутая система станций казино с 3D-рулетками.
 
 commands:
-  casino:
-    description: Главная команда казино NovaCassino
-    permission: novacassino.use
-    aliases: [kazik, roulette]
+  procasino:
+    description: Главная команда управления NovaCassino
+    aliases: [novacasino, casino]
+
+permissions:
+  procasino.command.about:
+    default: true
+  procasino.command.add:
+    default: op
+  procasino.command.delete:
+    default: op
+  procasino.command.teleport:
+    default: op
+  procasino.command.list:
+    default: op
+  procasino.command.reload:
+    default: op
+  procasino.command.set:
+    default: op
+  procasino.bypass.max-bets-per-day:
+    default: op
+  procasino.bypass.max-bets-per-round:
+    default: op
+  procasino.bypass.max-bet-amount-per-round:
+    default: op
