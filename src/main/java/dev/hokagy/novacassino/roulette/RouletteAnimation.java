@@ -6,6 +6,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Color;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Display;
@@ -13,10 +14,11 @@ import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.Material;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Transformation;
 import org.joml.AxisAngle4f;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.Random;
 
@@ -73,11 +75,18 @@ public class RouletteAnimation {
                 float speed = (float) (maxTicks - ticks) / maxTicks * 0.5f;
                 angle += Math.max(speed, 0.05f);
 
-                // Вращение предмета
-                Quaternionf rotation = new Quaternionf(new AxisAngle4f(angle, 0, 1, 0));
+                // Плавное вращение предмета через Transformation
+                Quaternionf leftRotation = new Quaternionf(new AxisAngle4f(angle, 0, 1, 0));
+                Transformation transformation = new Transformation(
+                        new Vector3f(0, 0, 0),             // смещение
+                        leftRotation,                      // поворот
+                        new Vector3f(1.5f, 1.5f, 1.5f),   // размер (масштаб)
+                        new Quaternionf()                  // правый поворот
+                );
+
                 itemDisplay.setInterpolationDuration(1);
                 itemDisplay.setInterpolationDelay(0);
-                itemDisplay.setLeftRotation(rotation);
+                itemDisplay.setTransformation(transformation);
 
                 // Эффекты и звуки
                 loc.getWorld().spawnParticle(Particle.END_ROD, loc, 3, 0.2, 0.2, 0.2, 0.02);
@@ -103,7 +112,6 @@ public class RouletteAnimation {
             loc.getWorld().spawnParticle(Particle.FIREWORK, loc, 30, 0.5, 0.5, 0.5, 0.1);
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
             
-            // TODO: Здесь добавь выдачу денег через Vault API
             player.sendMessage(Component.text(" Поздравляем! Вы выиграли ", NamedTextColor.GOLD)
                     .append(Component.text(winAmount + "$", NamedTextColor.GREEN, TextDecoration.BOLD)));
         } else {
