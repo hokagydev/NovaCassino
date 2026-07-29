@@ -1,0 +1,12 @@
+name: NovaCassino
+version: 1.0.0
+main: dev.hokagy.novacassino.NovaCassino
+api-version: '1.21'
+author: Hokagydev
+description: hokagydev
+
+commands:
+  casino:
+    description: Главная команда казино NovaCassino
+    permission: novacassino.use
+    aliases: [kazik, roulette]
