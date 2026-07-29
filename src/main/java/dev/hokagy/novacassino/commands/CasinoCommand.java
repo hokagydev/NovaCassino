@@ -1,7 +1,7 @@
 package dev.hokagy.novacassino.commands;
 
 import dev.hokagy.novacassino.NovaCassino;
-import dev.hokagy.novacassino.roulette.RouletteAnimation;
+import dev.hokagy.novacassino.model.CasinoStation;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
@@ -20,35 +20,120 @@ public class CasinoCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("Команда только для игроков!");
+        if (args.length == 0 || args[0].equalsIgnoreCase("about")) {
+            if (!sender.hasPermission("procasino.command.about")) return noPerm(sender);
+            sender.sendMessage(Component.text("--- NovaCassino v1.0.0 ---", NamedTextColor.GOLD));
+            sender.sendMessage(Component.text("Автор: Hokagydev", NamedTextColor.YELLOW));
+            sender.sendMessage(Component.text("Продвинутый плагин станций казино.", NamedTextColor.GRAY));
             return true;
         }
 
-        if (args.length < 2 || !args[0].equalsIgnoreCase("play")) {
-            player.sendMessage(Component.text("Использование: /casino play <ставка>", NamedTextColor.YELLOW));
-            return true;
-        }
+        String sub = args[0].toLowerCase();
 
-        try {
-            double bet = Double.parseDouble(args[1]);
-            if (bet <= 0) {
-                player.sendMessage(Component.text("Ставка должна быть больше 0!", NamedTextColor.RED));
-                return true;
+        switch (sub) {
+            case "add" -> {
+                if (!(sender instanceof Player player)) return onlyPlayers(sender);
+                if (!player.hasPermission("procasino.command.add")) return noPerm(player);
+                if (args.length < 2) {
+                    player.sendMessage(Component.text("Использование: /procasino add <тип> (Пример: ROULETTE)", NamedTextColor.RED));
+                    return true;
+                }
+                CasinoStation station = plugin.getCasinoManager().createStation(args[1], player.getLocation());
+                player.sendMessage(Component.text("Станция казино #" + station.getId() + " (" + station.getType() + ") успешно создана!", NamedTextColor.GREEN));
             }
-
-            player.sendMessage(Component.text(" Рулетка запускается! Ваша ставка: ", NamedTextColor.GOLD)
-                    .append(Component.text(bet + "$", NamedTextColor.GREEN)));
-
-            // TODO: Списать деньги у игрока (Vault API)
-            
-            // Запуск красивой 3D рулетки
-            new RouletteAnimation(plugin, player, bet).start();
-
-        } catch (NumberFormatException e) {
-            player.sendMessage(Component.text(" Укажите корректную сумму ставки!", NamedTextColor.RED));
+            case "delete" -> {
+                if (!sender.hasPermission("procasino.command.delete")) return noPerm(sender);
+                if (args.length < 2) {
+                    sender.sendMessage(Component.text("Использование: /procasino delete <id>", NamedTextColor.RED));
+                    return true;
+                }
+                try {
+                    int id = Integer.parseInt(args[1]);
+                    if (plugin.getCasinoManager().deleteStation(id)) {
+                        sender.sendMessage(Component.text("Станция #" + id + " удалена!", NamedTextColor.GREEN));
+                    } else {
+                        sender.sendMessage(Component.text("Станция с ID #" + id + " не найдена!", NamedTextColor.RED));
+                    }
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(Component.text("ID должен быть числом!", NamedTextColor.RED));
+                }
+            }
+            case "teleport" -> {
+                if (!(sender instanceof Player player)) return onlyPlayers(sender);
+                if (!player.hasPermission("procasino.command.teleport")) return noPerm(player);
+                if (args.length < 2) {
+                    player.sendMessage(Component.text("Использование: /procasino teleport <id>", NamedTextColor.RED));
+                    return true;
+                }
+                try {
+                    int id = Integer.parseInt(args[1]);
+                    CasinoStation station = plugin.getCasinoManager().getStation(id);
+                    if (station != null) {
+                        player.teleport(station.getCenterLocation().clone().add(0, 1, 0));
+                        player.sendMessage(Component.text("Телепортирование к станции #" + id, NamedTextColor.GREEN));
+                    } else {
+                        player.sendMessage(Component.text("Станция не найдена!", NamedTextColor.RED));
+                    }
+                } catch (NumberFormatException e) {
+                    player.sendMessage(Component.text("ID должен быть числом!", NamedTextColor.RED));
+                }
+            }
+            case "list" -> {
+                if (!sender.hasPermission("procasino.command.list")) return noPerm(sender);
+                sender.sendMessage(Component.text("--- Список станций NovaCassino ---", NamedTextColor.GOLD));
+                if (plugin.getCasinoManager().getStations().isEmpty()) {
+                    sender.sendMessage(Component.text("Нет созданных станций.", NamedTextColor.GRAY));
+                    return true;
+                }
+                plugin.getCasinoManager().getStations().forEach((id, st) -> {
+                    sender.sendMessage(Component.text("ID: " + id + " | Тип: " + st.getType() + " | Радиус: " + st.getRadius(), NamedTextColor.YELLOW));
+                });
+            }
+            case "set" -> {
+                if (!sender.hasPermission("procasino.command.set")) return noPerm(sender);
+                // Пример: /procasino set <id> radius <radius>
+                if (args.length < 4 || !args[2].equalsIgnoreCase("radius")) {
+                    sender.sendMessage(Component.text("Использование: /procasino set <id> radius <radius>", NamedTextColor.RED));
+                    return true;
+                }
+                try {
+                    int id = Integer.parseInt(args[1]);
+                    double radius = Double.parseDouble(args[3]);
+                    if (radius < 2.0 || radius > 7.0) {
+                        sender.sendMessage(Component.text("Радиус должен быть в диапазоне 2-7!", NamedTextColor.RED));
+                        return true;
+                    }
+                    CasinoStation st = plugin.getCasinoManager().getStation(id);
+                    if (st != null) {
+                        st.setRadius(radius);
+                        plugin.getCasinoManager().saveStations();
+                        sender.sendMessage(Component.text("Радиус станции #" + id + " изменен на " + radius, NamedTextColor.GREEN));
+                    } else {
+                        sender.sendMessage(Component.text("Станция не найдена!", NamedTextColor.RED));
+                    }
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(Component.text("Ошибка в аргументах числа!", NamedTextColor.RED));
+                }
+            }
+            case "reload" -> {
+                if (!sender.hasPermission("procasino.command.reload")) return noPerm(sender);
+                plugin.reloadConfig();
+                plugin.getCasinoManager().loadStations();
+                sender.sendMessage(Component.text("NovaCassino перезагружен!", NamedTextColor.GREEN));
+            }
+            default -> sender.sendMessage(Component.text("Неизвестная подкоманда. Наберите /procasino about", NamedTextColor.RED));
         }
 
+        return true;
+    }
+
+    private boolean noPerm(CommandSender sender) {
+        sender.sendMessage(Component.text("У вас нет прав для выполнения этой команды!", NamedTextColor.RED));
+        return true;
+    }
+
+    private boolean onlyPlayers(CommandSender sender) {
+        sender.sendMessage(Component.text("Эта команда доступна только игрокам!", NamedTextColor.RED));
         return true;
     }
 }
