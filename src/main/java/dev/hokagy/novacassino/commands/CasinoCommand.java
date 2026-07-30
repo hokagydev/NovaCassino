@@ -1,4 +1,4 @@
-package dev.hokagy.novacassino.commands;
+package dev.hokagy.novacassino.command;
 
 import dev.hokagy.novacassino.NovaCassino;
 import dev.hokagy.novacassino.model.CasinoStation;
