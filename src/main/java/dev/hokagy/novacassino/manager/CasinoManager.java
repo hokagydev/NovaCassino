@@ -40,7 +40,7 @@ public class CasinoManager {
     }
 
     public void loadStations() {
-        // 🔥 ВАЖНО: Очищаем существующие блоки и голограммы перед перезагрузкой
+        // Очищаем старые энтити из памяти и из мира
         removeAllEntities();
         stations.clear();
 
@@ -62,6 +62,8 @@ public class CasinoManager {
                 World world = Bukkit.getWorld(worldName);
                 if (world != null) {
                     Location loc = new Location(world, x, y, z);
+                    
+                    // Конструктор CasinoStation внутри себя зачистит дубликаты и заспавнит 1 рулетку
                     CasinoStation station = new CasinoStation(id, type, loc, radius);
                     stations.put(id, station);
                 }
@@ -110,9 +112,6 @@ public class CasinoManager {
         return false;
     }
 
-    /**
-     * Удаляет абсолютно все видимые сущности (голограммы и блоки) всех станций
-     */
     public void removeAllEntities() {
         for (CasinoStation station : stations.values()) {
             station.remove();
@@ -129,17 +128,6 @@ public class CasinoManager {
 
     public CasinoStation getStation(int id) {
         return stations.get(id);
-    }
-
-    public CasinoStation getStationAt(Location loc) {
-        for (CasinoStation station : stations.values()) {
-            if (station.getCenterLocation().getWorld().equals(loc.getWorld())) {
-                if (station.getCenterLocation().distance(loc) <= station.getRadius()) {
-                    return station;
-                }
-            }
-        }
-        return null;
     }
 
     public Map<Integer, CasinoStation> getStations() {
