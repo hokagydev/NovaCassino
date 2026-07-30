@@ -38,63 +38,63 @@ public class RouletteAnimation {
     public void start() {
         Location loc = player.getLocation().add(player.getLocation().getDirection().multiply(2)).add(0, 1.5, 0);
 
-        // Создаем голограмму-заголовок
+        // 🔥 ФИКС ГОЛОГРАММЫ: Делаем фон с полупрозрачной подложкой
         TextDisplay textDisplay = loc.getWorld().spawn(loc.clone().add(0, 0.8, 0), TextDisplay.class, display -> {
             display.text(Component.text("🎰 NOVACASSINO 🎰", NamedTextColor.GOLD, TextDecoration.BOLD));
             display.setBillboard(Display.Billboard.CENTER);
-            display.setBackgroundColor(Color.fromARGB(100, 0, 0, 0));
+            display.setDefaultBackground(true);
+            display.setBackgroundColor(Color.fromARGB(160, 0, 0, 0)); // Полупрозрачный плашка-фон
         });
 
-        // Создаем плавающий предмет рулетки
         ItemDisplay itemDisplay = loc.getWorld().spawn(loc, ItemDisplay.class, display -> {
             display.setItemStack(new ItemStack(Material.NETHER_STAR));
             display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
         });
 
-        // Случайный выигрыш: 0x (проигрыш), 2x, или 5x (джекпот)
+        // 🔥 ШАНСЫ БЕРУТСЯ ИЗ CONFIG.YML ИЛИ НАСТРОЕК
+        int lossChance = plugin.getConfig().getInt("solo_chances.loss.chance", 45);
+        int smallChance = plugin.getConfig().getInt("solo_chances.win_small.chance", 30);
+
         int outcome = random.nextInt(100);
         double multiplier;
-        if (outcome < 50) {
-            multiplier = 0.0; // 50% проигрыш
-        } else if (outcome < 90) {
-            multiplier = 2.0; // 40% удвоение
+
+        if (outcome < lossChance) {
+            multiplier = plugin.getConfig().getDouble("solo_chances.loss.multiplier", 0.0);
+        } else if (outcome < lossChance + smallChance) {
+            multiplier = plugin.getConfig().getDouble("solo_chances.win_small.multiplier", 1.5);
         } else {
-            multiplier = 5.0; // 10% джекпот
+            multiplier = plugin.getConfig().getDouble("solo_chances.jackpot.multiplier", 5.0);
         }
 
         new BukkitRunnable() {
             int ticks = 0;
             float angle = 0;
-            int maxTicks = 100; // 5 секунд анимации
+            int maxTicks = 100;
 
             @Override
             public void run() {
                 ticks++;
 
-                // Рассчитываем замедление
                 float speed = (float) (maxTicks - ticks) / maxTicks * 0.5f;
                 angle += Math.max(speed, 0.05f);
 
-                // Плавное вращение предмета через Transformation
                 Quaternionf leftRotation = new Quaternionf(new AxisAngle4f(angle, 0, 1, 0));
                 Transformation transformation = new Transformation(
-                        new Vector3f(0, 0, 0),             // смещение
-                        leftRotation,                      // поворот
-                        new Vector3f(1.5f, 1.5f, 1.5f),   // размер (масштаб)
-                        new Quaternionf()                  // правый поворот
+                        new Vector3f(0, 0, 0),
+                        leftRotation,
+                        new Vector3f(1.5f, 1.5f, 1.5f),
+                        new Quaternionf()
                 );
 
                 itemDisplay.setInterpolationDuration(1);
                 itemDisplay.setInterpolationDelay(0);
                 itemDisplay.setTransformation(transformation);
 
-                // Эффекты и звуки
                 loc.getWorld().spawnParticle(Particle.END_ROD, loc, 3, 0.2, 0.2, 0.2, 0.02);
                 if (ticks % 3 == 0) {
                     player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.5f, 1.5f + (speed * 2));
                 }
 
-                // Завершение анимации
                 if (ticks >= maxTicks) {
                     this.cancel();
                     finish(textDisplay, itemDisplay, multiplier);
@@ -122,7 +122,6 @@ public class RouletteAnimation {
             player.sendMessage(Component.text(" Вы проиграли свою ставку...", NamedTextColor.RED));
         }
 
-        // Удаляем объекты рулетки через 3 секунды
         new BukkitRunnable() {
             @Override
             public void run() {
