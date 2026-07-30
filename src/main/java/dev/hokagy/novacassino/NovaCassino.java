@@ -9,11 +9,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.logging.Level;
 
 public final class NovaCassino extends JavaPlugin {
 
@@ -29,6 +27,7 @@ public final class NovaCassino extends JavaPlugin {
 
         // 1. Инициализация конфигураций
         saveDefaultConfig();
+        reloadConfig(); // Гарантирует корректную загрузку config.yml из jar
         createMessagesConfig();
 
         // 2. Инициализация хука экономики (Vault)
@@ -70,11 +69,11 @@ public final class NovaCassino extends JavaPlugin {
             saveResource("messages.yml", false);
         }
 
-        messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+        reloadMessagesConfig();
     }
 
     /**
-     * Геттер для сообщения из messages.yml (устраняет ошибку компиляции в CasinoListener)
+     * Геттер для сообщений из messages.yml
      */
     public FileConfiguration getMessagesConfig() {
         if (messagesConfig == null) {
@@ -84,7 +83,7 @@ public final class NovaCassino extends JavaPlugin {
     }
 
     /**
-     * Перезагрузка файла messages.yml для команды /novacassino reload
+     * Перезагрузка файла messages.yml
      */
     public void reloadMessagesConfig() {
         if (messagesFile == null) {
@@ -96,6 +95,17 @@ public final class NovaCassino extends JavaPlugin {
         if (defaultStream != null) {
             YamlConfiguration defaultConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(defaultStream, StandardCharsets.UTF_8));
             messagesConfig.setDefaults(defaultConfig);
+        }
+    }
+
+    /**
+     * Метод для полного релоада всех конфигураций (для команды /novacassino reload)
+     */
+    public void reloadAllConfigs() {
+        reloadConfig();
+        reloadMessagesConfig();
+        if (casinoManager != null) {
+            casinoManager.loadStations();
         }
     }
 
