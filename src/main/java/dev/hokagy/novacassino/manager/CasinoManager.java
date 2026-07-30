@@ -4,8 +4,13 @@ import dev.hokagy.novacassino.NovaCassino;
 import dev.hokagy.novacassino.model.CasinoStation;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -13,80 +18,121 @@ public class CasinoManager {
 
     private final NovaCassino plugin;
     private final Map<Integer, CasinoStation> stations = new HashMap<>();
-    private int nextId = 0;
+    private File stationsFile;
+    private FileConfiguration stationsConfig;
 
     public CasinoManager(NovaCassino plugin) {
         this.plugin = plugin;
+        initStationsConfig();
     }
 
-    public CasinoStation createStation(String type, Location location) {
-        CasinoStation station = new CasinoStation(nextId, type.toUpperCase(), location, 3.5);
-        station.spawn();
-        stations.put(nextId, station);
-        nextId++;
+    private void initStationsConfig() {
+        stationsFile = new File(plugin.getDataFolder(), "stations.yml");
+        if (!stationsFile.exists()) {
+            try {
+                stationsFile.getParentFile().mkdirs();
+                stationsFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Не удалось создать stations.yml!");
+            }
+        }
+        stationsConfig = YamlConfiguration.loadConfiguration(stationsFile);
+    }
+
+    public void loadStations() {
+        stations.clear();
+        stationsConfig = YamlConfiguration.loadConfiguration(stationsFile);
+
+        ConfigurationSection section = stationsConfig.getConfigurationSection("stations");
+        if (section == null) return;
+
+        for (String key : section.getKeys(false)) {
+            try {
+                int id = Integer.parseInt(key);
+                String type = section.getString(key + ".type", "ROULETTE");
+                String worldName = section.getString(key + ".world");
+                double x = section.getDouble(key + ".x");
+                double y = section.getDouble(key + ".y");
+                double z = section.getDouble(key + ".z");
+                double radius = section.getDouble(key + ".radius", 3.5);
+
+                World world = Bukkit.getWorld(worldName);
+                if (world != null) {
+                    Location loc = new Location(world, x, y, z);
+                    CasinoStation station = new CasinoStation(id, type, loc, radius);
+                    stations.put(id, station);
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Ошибка загрузки станции ID: " + key);
+            }
+        }
+    }
+
+    public void saveStations() {
+        stationsConfig.set("stations", null);
+
+        for (CasinoStation station : stations.values()) {
+            String path = "stations." + station.getId();
+            stationsConfig.set(path + ".type", station.getType());
+            stationsConfig.set(path + ".world", station.getCenterLocation().getWorld().getName());
+            stationsConfig.set(path + ".x", station.getCenterLocation().getX());
+            stationsConfig.set(path + ".y", station.getCenterLocation().getY());
+            stationsConfig.set(path + ".z", station.getCenterLocation().getZ());
+            stationsConfig.set(path + ".radius", station.getRadius());
+        }
+
+        try {
+            stationsConfig.save(stationsFile);
+        } catch (IOException e) {
+            plugin.getLogger().severe("Не удалось сохранить stations.yml!");
+        }
+    }
+
+    public CasinoStation createStation(String type, Location loc) {
+        int id = generateUniqueId();
+        double radius = plugin.getConfig().getDouble("station.radius", 3.5);
+        CasinoStation station = new CasinoStation(id, type, loc, radius);
+        stations.put(id, station);
         saveStations();
         return station;
     }
 
     public boolean deleteStation(int id) {
-        CasinoStation station = stations.remove(id);
-        if (station != null) {
-            station.clear();
+        if (stations.containsKey(id)) {
+            CasinoStation station = stations.remove(id);
+            if (station.getHologram() != null) {
+                station.getHologram().remove();
+            }
             saveStations();
             return true;
         }
         return false;
     }
 
+    private int generateUniqueId() {
+        int id = 1;
+        while (stations.containsKey(id)) {
+            id++;
+        }
+        return id;
+    }
+
     public CasinoStation getStation(int id) {
         return stations.get(id);
     }
 
-    public Map<Integer, CasinoStation> getStations() {
-        return stations;
-    }
-
-    public void loadStations() {
-        // Очищаем старые
-        stations.values().forEach(CasinoStation::clear);
-        stations.clear();
-
-        FileConfiguration config = plugin.getConfig();
-        if (!config.contains("stations")) return;
-
-        for (String key : config.getConfigurationSection("stations").getKeys(false)) {
-            int id = Integer.parseInt(key);
-            String type = config.getString("stations." + key + ".type");
-            String world = config.getString("stations." + key + ".world");
-            double x = config.getDouble("stations." + key + ".x");
-            double y = config.getDouble("stations." + key + ".y");
-            double z = config.getDouble("stations." + key + ".z");
-            double radius = config.getDouble("stations." + key + ".radius", 3.5);
-
-            Location loc = new Location(Bukkit.getWorld(world), x, y, z);
-            CasinoStation station = new CasinoStation(id, type, loc, radius);
-            station.spawn();
-            stations.put(id, station);
-
-            if (id >= nextId) {
-                nextId = id + 1;
+    public CasinoStation getStationAt(Location loc) {
+        for (CasinoStation station : stations.values()) {
+            if (station.getCenterLocation().getWorld().equals(loc.getWorld())) {
+                if (station.getCenterLocation().distance(loc) <= station.getRadius()) {
+                    return station;
+                }
             }
         }
+        return null;
     }
 
-    public void saveStations() {
-        FileConfiguration config = plugin.getConfig();
-        config.set("stations", null); // Сброс раздела
-
-        for (CasinoStation station : stations.values()) {
-            String path = "stations." + station.getId();
-            config.set(path + ".type", station.getType());
-            config.set(path + ".world", station.getCenterLocation().getWorld().getName());
-            config.set(path + ".x", station.getCenterLocation().getX());
-            config.set(path + ".y", station.getCenterLocation().getY());
-            config.set(path + ".z", station.getCenterLocation().getZ());
-            config.set(path + ".radius", station.getRadius());
-        }
-        plugin.saveConfig();
+    public Map<Integer, CasinoStation> getStations() {
+        return stations;
     }
 }
