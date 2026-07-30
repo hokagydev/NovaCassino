@@ -1,10 +1,11 @@
-package dev.hokagy.novacassino.command;
+package dev.hokagy.novacassino.commands;
 
 import dev.hokagy.novacassino.NovaCassino;
 import dev.hokagy.novacassino.model.CasinoStation;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -66,8 +67,26 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                         player.sendMessage(Component.text("Использование: /procasino add <тип> (Пример: ROULETTE или SLOTS)", NamedTextColor.RED));
                         return true;
                     }
-                    CasinoStation station = plugin.getCasinoManager().createStation(args[1].toUpperCase(), player.getLocation());
-                    player.sendMessage(Component.text("Станция казино #" + station.getId() + " (" + station.getType() + ") создана!", NamedTextColor.GREEN));
+
+                    String type = args[1].toUpperCase();
+                    CasinoStation station;
+
+                    if (type.equals("SLOTS")) {
+                        if (!plugin.getSelectionManager().hasSelection(player.getUniqueId())) {
+                            player.sendMessage(Component.text("Сначала выделите экран палочкой (/procasino wand)!", NamedTextColor.RED));
+                            return true;
+                        }
+
+                        Location displayStart = plugin.getSelectionManager().getMinCorner(player.getUniqueId());
+                        station = plugin.getCasinoManager().createStation(type, displayStart);
+                        station.setDisplayStart(displayStart);
+                        plugin.getCasinoManager().saveStations();
+
+                        player.sendMessage(Component.text("Игровой автомат #" + station.getId() + " (" + station.getType() + ") привязан к выделенной сетке!", NamedTextColor.GREEN));
+                    } else {
+                        station = plugin.getCasinoManager().createStation(type, player.getLocation());
+                        player.sendMessage(Component.text("Станция казино #" + station.getId() + " (" + station.getType() + ") создана!", NamedTextColor.GREEN));
+                    }
                 }
                 case "delete" -> {
                     if (!hasPermission(sender, "procasino.command.delete")) return true;
