@@ -38,12 +38,11 @@ public class RouletteAnimation {
     public void start() {
         Location loc = player.getLocation().add(player.getLocation().getDirection().multiply(2)).add(0, 1.5, 0);
 
-        // 🔥 ФИКС ГОЛОГРАММЫ: Делаем фон с полупрозрачной подложкой
+        // 🌟 ПРОЗРАЧНЫЙ ФОН ГОЛОГРАММЫ (Только текст)
         TextDisplay textDisplay = loc.getWorld().spawn(loc.clone().add(0, 0.8, 0), TextDisplay.class, display -> {
             display.text(Component.text("🎰 NOVACASSINO 🎰", NamedTextColor.GOLD, TextDecoration.BOLD));
             display.setBillboard(Display.Billboard.CENTER);
-            display.setDefaultBackground(true);
-            display.setBackgroundColor(Color.fromARGB(160, 0, 0, 0)); // Полупрозрачный плашка-фон
+            display.setBackgroundColor(Color.fromARGB(0, 0, 0, 0)); // 🔥 0 альфа = прозрачный фон
         });
 
         ItemDisplay itemDisplay = loc.getWorld().spawn(loc, ItemDisplay.class, display -> {
@@ -51,7 +50,6 @@ public class RouletteAnimation {
             display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
         });
 
-        // 🔥 ШАНСЫ БЕРУТСЯ ИЗ CONFIG.YML ИЛИ НАСТРОЕК
         int lossChance = plugin.getConfig().getInt("solo_chances.loss.chance", 45);
         int smallChance = plugin.getConfig().getInt("solo_chances.win_small.chance", 30);
 
