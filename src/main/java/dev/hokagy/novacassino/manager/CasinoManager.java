@@ -40,7 +40,10 @@ public class CasinoManager {
     }
 
     public void loadStations() {
+        // 🔥 ВАЖНО: Очищаем существующие блоки и голограммы перед перезагрузкой
+        removeAllEntities();
         stations.clear();
+
         stationsConfig = YamlConfiguration.loadConfiguration(stationsFile);
 
         ConfigurationSection section = stationsConfig.getConfigurationSection("stations");
@@ -100,12 +103,20 @@ public class CasinoManager {
     public boolean deleteStation(int id) {
         if (stations.containsKey(id)) {
             CasinoStation station = stations.remove(id);
-            // 🔥 Очищаем голограмму/энтити станции безопасным вызовом
             station.remove();
             saveStations();
             return true;
         }
         return false;
+    }
+
+    /**
+     * Удаляет абсолютно все видимые сущности (голограммы и блоки) всех станций
+     */
+    public void removeAllEntities() {
+        for (CasinoStation station : stations.values()) {
+            station.remove();
+        }
     }
 
     private int generateUniqueId() {
