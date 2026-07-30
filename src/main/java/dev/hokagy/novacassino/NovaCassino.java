@@ -3,6 +3,7 @@ package dev.hokagy.novacassino;
 import dev.hokagy.novacassino.command.CasinoCommand;
 import dev.hokagy.novacassino.hook.VaultHook;
 import dev.hokagy.novacassino.listener.CasinoListener;
+import dev.hokagy.novacassino.listener.SlotInteractionListener;
 import dev.hokagy.novacassino.manager.CasinoManager;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -39,8 +40,9 @@ public final class NovaCassino extends JavaPlugin {
         this.casinoManager = new CasinoManager(this);
         this.casinoManager.loadStations();
 
-        // 4. Регистрация слушателей событий
+        // 4. Регистрация слушателей событий (Рулетка + Игровые автоматы)
         getServer().getPluginManager().registerEvents(new CasinoListener(this), this);
+        getServer().getPluginManager().registerEvents(new SlotInteractionListener(this), this);
 
         // 5. Регистрация команд
         if (getCommand("procasino") != null) {
