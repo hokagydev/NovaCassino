@@ -4,14 +4,14 @@ import dev.hokagy.novacassino.NovaCassino;
 import dev.hokagy.novacassino.hook.VaultHook;
 import dev.hokagy.novacassino.model.CasinoStation;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -33,19 +33,29 @@ import java.util.*;
 public class CasinoListener implements Listener {
 
     private final NovaCassino plugin;
+    private final MiniMessage miniMessage = MiniMessage.miniMessage();
     private final Random random = new Random();
 
-    // Блокировка станции на время игры (Station ID -> Status)
     private final Map<Integer, Boolean> activeGames = new HashMap<>();
-    
-    // Ожидание ввода кастомной ставки в чат (Player UUID -> Station ID)
     private final Map<UUID, Integer> awaitingCustomBet = new HashMap<>();
 
     public CasinoListener(NovaCassino plugin) {
         this.plugin = plugin;
     }
 
-    // 1. Открытие GUI по ПКМ на станцию
+    private Component getMsg(String path) {
+        String msg = plugin.getMessagesConfig().getString(path, "");
+        return miniMessage.deserialize(msg);
+    }
+
+    private Component getMsg(String path, Map<String, String> placeholders) {
+        String msg = plugin.getMessagesConfig().getString(path, "");
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            msg = msg.replace("<" + entry.getKey() + ">", entry.getValue());
+        }
+        return miniMessage.deserialize(msg);
+    }
+
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
@@ -56,9 +66,8 @@ public class CasinoListener implements Listener {
                     if (event.getAction().name().contains("RIGHT_CLICK")) {
                         event.setCancelled(true);
 
-                        // Проверка: крутится ли станция прямо сейчас
                         if (activeGames.getOrDefault(station.getId(), false)) {
-                            player.sendMessage(Component.text("⛔ На этой станции уже идет рулетка! Дождитесь окончания.", NamedTextColor.RED));
+                            player.sendMessage(getMsg("game_already_running"));
                             return;
                         }
 
@@ -70,41 +79,46 @@ public class CasinoListener implements Listener {
         }
     }
 
-    // 👥 Поиск игроков рядом со станцией (до 5 человек)
     private List<Player> getNearbyPlayers(CasinoStation station) {
         List<Player> nearby = new ArrayList<>();
         Location center = station.getCenterLocation();
+        double offset = plugin.getConfig().getDouble("station.detection_radius_offset", 2.0);
+        int max = plugin.getConfig().getInt("station.max_players", 5);
+
         for (Player p : center.getWorld().getPlayers()) {
-            if (p.getLocation().distance(center) <= station.getRadius() + 2.0) {
+            if (p.getLocation().distance(center) <= station.getRadius() + offset) {
                 nearby.add(p);
-                if (nearby.size() >= 5) break;
+                if (nearby.size() >= max) break;
             }
         }
         return nearby;
     }
 
-    // 2. Открытие GUI
     public void openBetMenu(Player player, CasinoStation station) {
         List<Player> nearbyPlayers = getNearbyPlayers(station);
         int count = nearbyPlayers.size();
+        int max = plugin.getConfig().getInt("station.max_players", 5);
 
-        String modeTitle = (count == 1) ? "Соло-режим" : "Игроков рядом: " + count + "/5";
-        Inventory gui = Bukkit.createInventory(null, 27, Component.text("🎰 #" + station.getId() + " | " + modeTitle, NamedTextColor.DARK_PURPLE, TextDecoration.BOLD));
+        Component title = (count == 1)
+                ? getMsg("gui.title_solo", Map.of("id", String.valueOf(station.getId())))
+                : getMsg("gui.title_multi", Map.of("id", String.valueOf(station.getId()), "count", String.valueOf(count), "max", String.valueOf(max)));
 
-        // Готовые кнопки ставок
-        gui.setItem(10, createBetItem(Material.GOLD_NUGGET, "Маленькая ставка", 100));
-        gui.setItem(12, createBetItem(Material.GOLD_INGOT, "Средняя ставка", 500));
-        gui.setItem(14, createBetItem(Material.GOLD_BLOCK, "Крупная ставка", 2500));
+        Inventory gui = Bukkit.createInventory(null, 27, title);
 
-        // Своя ставка
+        FileConfiguration config = plugin.getConfig();
+        gui.setItem(10, createBetItem(Material.GOLD_NUGGET, "Маленькая ставка", config.getDouble("preset_bets.slot_10", 100.0)));
+        gui.setItem(12, createBetItem(Material.GOLD_INGOT, "Средняя ставка", config.getDouble("preset_bets.slot_12", 500.0)));
+        gui.setItem(14, createBetItem(Material.GOLD_BLOCK, "Крупная ставка", config.getDouble("preset_bets.slot_14", 2500.0)));
+
         ItemStack customItem = new ItemStack(Material.PAPER);
         ItemMeta cMeta = customItem.getItemMeta();
         if (cMeta != null) {
-            cMeta.displayName(Component.text("✍️ Своя ставка", NamedTextColor.YELLOW, TextDecoration.BOLD));
-            cMeta.lore(List.of(
-                    Component.text("Нажмите, чтобы ввести сумму", NamedTextColor.GRAY),
-                    Component.text("прямо в чат!", NamedTextColor.GRAY)
-            ));
+            cMeta.displayName(getMsg("gui.custom_item_name"));
+            List<Component> lore = new ArrayList<>();
+            for (String l : plugin.getMessagesConfig().getStringList("gui.custom_item_lore")) {
+                lore.add(miniMessage.deserialize(l));
+            }
+            cMeta.lore(lore);
             customItem.setItemMeta(cMeta);
         }
         gui.setItem(16, customItem);
@@ -116,48 +130,49 @@ public class CasinoListener implements Listener {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text(name, NamedTextColor.GOLD, TextDecoration.BOLD));
-            meta.lore(List.of(
-                    Component.text("Поставить: ", NamedTextColor.GRAY).append(Component.text(amount + "$", NamedTextColor.GREEN)),
-                    Component.text("Нажмите для старта!", NamedTextColor.YELLOW)
-            ));
+            meta.displayName(getMsg("gui.bet_item_name", Map.of("name", name)));
+            List<Component> lore = new ArrayList<>();
+            for (String l : plugin.getMessagesConfig().getStringList("gui.bet_item_lore")) {
+                lore.add(miniMessage.deserialize(l.replace("<amount>", String.valueOf(amount))));
+            }
+            meta.lore(lore);
             item.setItemMeta(meta);
         }
         return item;
     }
 
-    // 3. Обработка клика в меню
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        String title = event.getView().title().toString();
-        if (!title.contains("🎰 #")) return;
-
-        event.setCancelled(true);
+        
+        // Перехватываем клик по нашему заголовку GUI
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || !clicked.hasItemMeta()) return;
 
-        int stationId = -1;
-        try {
-            String idStr = title.substring(title.indexOf("#") + 1, title.indexOf(" |"));
-            stationId = Integer.parseInt(idStr.trim());
-        } catch (Exception ignored) {}
-
-        CasinoStation station = plugin.getCasinoManager().getStation(stationId);
+        CasinoStation station = null;
+        for (CasinoStation s : plugin.getCasinoManager().getStations().values()) {
+            if (s.getCenterLocation().getWorld().equals(player.getWorld()) &&
+                s.getCenterLocation().distance(player.getLocation()) <= s.getRadius() + 3.0) {
+                station = s;
+                break;
+            }
+        }
         if (station == null) return;
 
-        // Нажал на "Своя ставка"
+        event.setCancelled(true);
+
         if (clicked.getType() == Material.PAPER) {
             player.closeInventory();
             awaitingCustomBet.put(player.getUniqueId(), station.getId());
-            player.sendMessage(Component.text("✍️ Введите желаемую сумму ставки в чат (или 'cancel' для отмены):", NamedTextColor.YELLOW));
+            player.sendMessage(getMsg("enter_custom_bet"));
             return;
         }
 
+        FileConfiguration config = plugin.getConfig();
         double bet = 0;
-        if (clicked.getType() == Material.GOLD_NUGGET) bet = 100;
-        else if (clicked.getType() == Material.GOLD_INGOT) bet = 500;
-        else if (clicked.getType() == Material.GOLD_BLOCK) bet = 2500;
+        if (clicked.getType() == Material.GOLD_NUGGET) bet = config.getDouble("preset_bets.slot_10", 100.0);
+        else if (clicked.getType() == Material.GOLD_INGOT) bet = config.getDouble("preset_bets.slot_12", 500.0);
+        else if (clicked.getType() == Material.GOLD_BLOCK) bet = config.getDouble("preset_bets.slot_14", 2500.0);
 
         if (bet > 0) {
             player.closeInventory();
@@ -165,7 +180,6 @@ public class CasinoListener implements Listener {
         }
     }
 
-    // 4. Перехват чата для ввода своей ставки
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
@@ -177,7 +191,7 @@ public class CasinoListener implements Listener {
 
         String msg = event.getMessage().trim();
         if (msg.equalsIgnoreCase("cancel")) {
-            player.sendMessage(Component.text("❌ Ввод ставки отменен.", NamedTextColor.RED));
+            player.sendMessage(getMsg("bet_cancelled"));
             return;
         }
 
@@ -185,74 +199,63 @@ public class CasinoListener implements Listener {
 
         try {
             double bet = Double.parseDouble(msg);
-            if (bet <= 0) {
-                player.sendMessage(Component.text("❌ Ставка должна быть больше 0$!", NamedTextColor.RED));
+            double min = plugin.getConfig().getDouble("custom_bet.min", 10.0);
+            double max = plugin.getConfig().getDouble("custom_bet.max", 100000.0);
+
+            if (bet < min || bet > max) {
+                player.sendMessage(getMsg("bet_must_be_positive"));
                 return;
             }
 
-            // Переходим в основной поток Bukkit для запуска спина
             Bukkit.getScheduler().runTask(plugin, () -> processGameStart(player, station, bet));
-
         } catch (NumberFormatException e) {
-            player.sendMessage(Component.text("❌ Некорректное число! Ввод ставки отменен.", NamedTextColor.RED));
+            player.sendMessage(getMsg("invalid_number"));
         }
     }
 
-    // 5. Проверка балансов и запуск игры
     private void processGameStart(Player host, CasinoStation station, double betPerPlayer) {
         if (activeGames.getOrDefault(station.getId(), false)) {
-            host.sendMessage(Component.text("⛔ На этой станции уже крутится рулетка!", NamedTextColor.RED));
+            host.sendMessage(getMsg("game_already_running"));
             return;
         }
 
         List<Player> nearbyPlayers = getNearbyPlayers(station);
 
-        // 🟢 ОДИНОЧНЫЙ РЕЖИМ (1 игрок)
         if (nearbyPlayers.size() <= 1) {
             if (!VaultHook.hasEconomy() || VaultHook.getEconomy().getBalance(host) < betPerPlayer) {
-                host.sendMessage(Component.text("❌ У вас недостаточно средств! Баланс: " + (VaultHook.hasEconomy() ? VaultHook.getEconomy().getBalance(host) : 0) + "$", NamedTextColor.RED));
+                host.sendMessage(getMsg("not_enough_money_solo", Map.of("amount", String.valueOf(betPerPlayer))));
                 return;
             }
             VaultHook.getEconomy().withdrawPlayer(host, betPerPlayer);
             startSoloSpin(host, station, betPerPlayer);
-        }
-        // ⚔️ МУЛЬТИПЛЕЕР (2-5 игроков)
-        else {
+        } else {
             List<Player> qualifiedPlayers = new ArrayList<>();
             for (Player p : nearbyPlayers) {
                 if (VaultHook.hasEconomy() && VaultHook.getEconomy().getBalance(p) >= betPerPlayer) {
                     qualifiedPlayers.add(p);
                 } else {
-                    p.sendMessage(Component.text("⚠️ У вас недостаточно средств (" + betPerPlayer + "$) для дуэли!", NamedTextColor.RED));
+                    p.sendMessage(getMsg("not_enough_money_multi", Map.of("amount", String.valueOf(betPerPlayer))));
                 }
             }
 
             if (qualifiedPlayers.size() < 2) {
-                host.sendMessage(Component.text("❌ Недостаточно игроков с нужным балансом для мультиплеера!", NamedTextColor.RED));
+                host.sendMessage(getMsg("not_enough_qualified_players"));
                 return;
             }
 
-            // Списываем деньги у всех готовых участников
             for (Player p : qualifiedPlayers) {
                 VaultHook.getEconomy().withdrawPlayer(p, betPerPlayer);
-                p.sendMessage(Component.text("🎰 Вы в игре! Ставка ", NamedTextColor.GREEN)
-                        .append(Component.text(betPerPlayer + "$", NamedTextColor.GOLD))
-                        .append(Component.text(" принята.", NamedTextColor.GREEN)));
+                p.sendMessage(getMsg("join_multi_game", Map.of("amount", String.valueOf(betPerPlayer))));
             }
 
             startMultiplayerSpin(qualifiedPlayers, station, betPerPlayer);
         }
     }
 
-    // 🎰 1. Соло-рулетка
     private void startSoloSpin(Player player, CasinoStation station, double bet) {
         activeGames.put(station.getId(), true);
 
-        station.updateHologram(
-                Component.text("🎰 СОЛО РУЛЕТКА 🎰", NamedTextColor.GOLD, TextDecoration.BOLD)
-                        .append(Component.text("\nИгрок: ", NamedTextColor.GRAY)).append(Component.text(player.getName(), NamedTextColor.WHITE))
-                        .append(Component.text("\nСтавка: ", NamedTextColor.GRAY)).append(Component.text(bet + "$", NamedTextColor.GREEN))
-        );
+        station.updateHologram(getMsg("hologram.solo_active", Map.of("player", player.getName(), "amount", String.valueOf(bet))));
 
         Location centerLoc = station.getCenterLocation();
         ItemDisplay centerStar = centerLoc.getWorld().spawn(centerLoc.clone().add(0, 1.3, 0), ItemDisplay.class, display -> {
@@ -260,8 +263,8 @@ public class CasinoListener implements Listener {
             display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
         });
 
-        int outcome = random.nextInt(100);
-        double multiplier = (outcome < 45) ? 0.0 : (outcome < 75 ? 1.5 : (outcome < 93 ? 3.0 : 10.0));
+        // Расчет выигрыша из config.yml
+        double multiplier = calculateSoloMultiplier();
 
         runSpinTask(station, centerLoc, centerStar, (winLoc) -> {
             if (multiplier > 0) {
@@ -272,31 +275,49 @@ public class CasinoListener implements Listener {
                     winLoc.getWorld().strikeLightningEffect(winLoc);
                     winLoc.getWorld().spawnParticle(Particle.FIREWORK, winLoc, 80, 0.5, 0.5, 0.5, 0.2);
                     player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 0.8f);
-                    station.updateHologram(Component.text("🔥 ДЖЕКПОТ 10X! 🔥\nВыигрыш: +" + winAmount + "$", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD));
+                    player.sendMessage(getMsg("solo_jackpot", Map.of("amount", String.valueOf(winAmount))));
+                    station.updateHologram(getMsg("hologram.solo_jackpot", Map.of("amount", String.valueOf(winAmount))));
                 } else {
                     winLoc.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, winLoc, 50, 0.4, 0.4, 0.4, 0.15);
                     player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
-                    station.updateHologram(Component.text("🎉 ВЫИГРЫШ! 🎉\nКуш: +" + winAmount + "$ (" + multiplier + "x)", NamedTextColor.GREEN, TextDecoration.BOLD));
+                    player.sendMessage(getMsg("solo_win", Map.of("amount", String.valueOf(winAmount), "multiplier", String.valueOf(multiplier))));
+                    station.updateHologram(getMsg("hologram.solo_win", Map.of("amount", String.valueOf(winAmount), "multiplier", String.valueOf(multiplier))));
                 }
             } else {
                 winLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, winLoc, 25, 0.3, 0.3, 0.3, 0.05);
                 player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 0.9f);
-                station.updateHologram(Component.text("❌ ПРОИГРЫШ ❌", NamedTextColor.RED, TextDecoration.BOLD));
+                player.sendMessage(getMsg("solo_loss"));
+                station.updateHologram(getMsg("hologram.solo_loss"));
             }
 
             resetStationLater(station, 100L);
         });
     }
 
-    // ⚔️ 2. Мультиплеер (Битва за общий банк)
+    private double calculateSoloMultiplier() {
+        int roll = random.nextInt(100);
+        FileConfiguration cfg = plugin.getConfig();
+
+        int lossChance = cfg.getInt("solo_chances.loss.chance", 45);
+        int smallChance = cfg.getInt("solo_chances.win_small.chance", 30);
+        int mediumChance = cfg.getInt("solo_chances.win_medium.chance", 18);
+
+        if (roll < lossChance) {
+            return cfg.getDouble("solo_chances.loss.multiplier", 0.0);
+        } else if (roll < lossChance + smallChance) {
+            return cfg.getDouble("solo_chances.win_small.multiplier", 1.5);
+        } else if (roll < lossChance + smallChance + mediumChance) {
+            return cfg.getDouble("solo_chances.win_medium.multiplier", 3.0);
+        } else {
+            return cfg.getDouble("solo_chances.jackpot.multiplier", 10.0);
+        }
+    }
+
     private void startMultiplayerSpin(List<Player> participants, CasinoStation station, double betPerPlayer) {
         activeGames.put(station.getId(), true);
         double totalBank = betPerPlayer * participants.size();
 
-        station.updateHologram(
-                Component.text("⚔️ БИТВА ЗА БАНК: " + totalBank + "$ ⚔️", NamedTextColor.GOLD, TextDecoration.BOLD)
-                        .append(Component.text("\nИгроков: ", NamedTextColor.GRAY)).append(Component.text(participants.size() + " чел.", NamedTextColor.GREEN))
-        );
+        station.updateHologram(getMsg("hologram.multi_active", Map.of("amount", String.valueOf(totalBank), "count", String.valueOf(participants.size()))));
 
         Location centerLoc = station.getCenterLocation();
         ItemDisplay centerItem = centerLoc.getWorld().spawn(centerLoc.clone().add(0, 1.3, 0), ItemDisplay.class, display -> {
@@ -304,7 +325,6 @@ public class CasinoListener implements Listener {
             display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
         });
 
-        // Случайный победитель забирает банк
         Player winner = participants.get(random.nextInt(participants.size()));
 
         runSpinTask(station, centerLoc, centerItem, (winLoc) -> {
@@ -316,24 +336,19 @@ public class CasinoListener implements Listener {
             for (Player p : participants) {
                 if (p.equals(winner)) {
                     p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-                    p.sendMessage(Component.text("🏆 ВЫ ЗАБРАЛИ ВЕСЬ БАНК: ", NamedTextColor.GOLD)
-                            .append(Component.text(totalBank + "$!", NamedTextColor.GREEN, TextDecoration.BOLD)));
+                    p.sendMessage(getMsg("multi_win", Map.of("amount", String.valueOf(totalBank))));
                 } else {
                     p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 0.8f);
-                    p.sendMessage(Component.text("💀 Вы проиграли... Победил: " + winner.getName(), NamedTextColor.RED));
+                    p.sendMessage(getMsg("multi_loss", Map.of("winner", winner.getName())));
                 }
             }
 
-            station.updateHologram(
-                    Component.text("🏆 ПОБЕДИТЕЛЬ: " + winner.getName() + " 🏆", NamedTextColor.GREEN, TextDecoration.BOLD)
-                            .append(Component.text("\nКуш: ", NamedTextColor.GRAY)).append(Component.text("+" + totalBank + "$", NamedTextColor.GOLD, TextDecoration.BOLD))
-            );
+            station.updateHologram(getMsg("hologram.multi_win", Map.of("winner", winner.getName(), "amount", String.valueOf(totalBank))));
 
             resetStationLater(station, 120L);
         });
     }
 
-    // 🌟 Универсальный таск анимации вращения
     private void runSpinTask(CasinoStation station, Location centerLoc, ItemDisplay centerItem, java.util.function.Consumer<Location> onFinish) {
         new BukkitRunnable() {
             int ticks = 0;
@@ -364,7 +379,6 @@ public class CasinoListener implements Listener {
                 double z = radius * Math.sin(ballAngle);
                 Location ballLoc = centerLoc.clone().add(x, 0.4, z);
 
-                // Искры и лазерные лучи
                 for (int i = 0; i <= 6; i++) {
                     double ratio = (double) i / 6;
                     Location rayPoint = centerLoc.clone().add(x * ratio, 0.5 + (hoverY * (1 - ratio)), z * ratio);
