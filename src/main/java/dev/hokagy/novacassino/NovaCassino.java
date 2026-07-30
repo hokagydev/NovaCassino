@@ -27,7 +27,7 @@ public final class NovaCassino extends JavaPlugin {
 
         // 1. Инициализация конфигураций
         saveDefaultConfig();
-        reloadConfig(); // Гарантирует корректную загрузку config.yml из jar
+        reloadConfig();
         createMessagesConfig();
 
         // 2. Инициализация хука экономики (Vault)
@@ -43,10 +43,10 @@ public final class NovaCassino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new CasinoListener(this), this);
 
         // 5. Регистрация команд
-        if (getCommand("novacassino") != null) {
+        if (getCommand("procasino") != null) {
             CasinoCommand commandExecutor = new CasinoCommand(this);
-            getCommand("novacassino").setExecutor(commandExecutor);
-            getCommand("novacassino").setTabCompleter(commandExecutor);
+            getCommand("procasino").setExecutor(commandExecutor);
+            getCommand("procasino").setTabCompleter(commandExecutor);
         }
 
         getLogger().info("NovaCassino успешно включен!");
@@ -56,11 +56,11 @@ public final class NovaCassino extends JavaPlugin {
     public void onDisable() {
         if (this.casinoManager != null) {
             this.casinoManager.saveStations();
+            // 🔥 Вызываем удаление всех голограмм и блоков с карты при выключении/релоаде
+            this.casinoManager.removeAllEntities();
         }
         getLogger().info("NovaCassino выключен.");
     }
-
-    // --- Управление messages.yml ---
 
     private void createMessagesConfig() {
         messagesFile = new File(getDataFolder(), "messages.yml");
@@ -72,9 +72,6 @@ public final class NovaCassino extends JavaPlugin {
         reloadMessagesConfig();
     }
 
-    /**
-     * Геттер для сообщений из messages.yml
-     */
     public FileConfiguration getMessagesConfig() {
         if (messagesConfig == null) {
             reloadMessagesConfig();
@@ -82,9 +79,6 @@ public final class NovaCassino extends JavaPlugin {
         return this.messagesConfig;
     }
 
-    /**
-     * Перезагрузка файла messages.yml
-     */
     public void reloadMessagesConfig() {
         if (messagesFile == null) {
             messagesFile = new File(getDataFolder(), "messages.yml");
@@ -98,9 +92,6 @@ public final class NovaCassino extends JavaPlugin {
         }
     }
 
-    /**
-     * Метод для полного релоада всех конфигураций (для команды /novacassino reload)
-     */
     public void reloadAllConfigs() {
         reloadConfig();
         reloadMessagesConfig();
@@ -108,8 +99,6 @@ public final class NovaCassino extends JavaPlugin {
             casinoManager.loadStations();
         }
     }
-
-    // --- Геттеры главного класса ---
 
     public static NovaCassino getInstance() {
         return instance;
