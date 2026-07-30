@@ -1,6 +1,7 @@
 package dev.hokagy.novacassino;
 
 import dev.hokagy.novacassino.commands.CasinoCommand;
+import dev.hokagy.novacassino.commands.CasinoTabCompleter;
 import dev.hokagy.novacassino.hook.VaultHook;
 import dev.hokagy.novacassino.listener.CasinoListener;
 import dev.hokagy.novacassino.manager.CasinoManager;
@@ -15,26 +16,27 @@ public final class NovaCassino extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
-        // 1. Создание и загрузка дефолтного config.yml
+        // 1. Сохранение дефолтного config.yml
         saveDefaultConfig();
 
-        // 2. Инициализация интеграции с Vault (Экономика)
+        // 2. Инициализация интеграции с Vault
         if (VaultHook.setupEconomy()) {
             getLogger().info("Успешная интеграция с Vault! Экономика подключена.");
         } else {
-            getLogger().warning("Vault или плагин экономики не найден! Ставки за деньги работать не будут.");
+            getLogger().warning("Vault или плагин экономики не найден! Ставки за деньги отключены.");
         }
 
-        // 3. Инициализация менеджера казино и загрузка станций из конфига
+        // 3. Инициализация менеджера казино
         casinoManager = new CasinoManager(this);
         casinoManager.loadStations();
 
-        // 4. Регистрация команд (/procasino, /casino, /novacasino)
+        // 4. Регистрация команд и автодополнения (TabCompleter)
         if (getCommand("procasino") != null) {
             getCommand("procasino").setExecutor(new CasinoCommand(this));
+            getCommand("procasino").setTabCompleter(new CasinoTabCompleter(this));
         }
 
-        // 5. Регистрация слушателя событий (ПКМ по станции и меню ставок)
+        // 5. Регистрация слушателя событий (GUI и 3D-анимации)
         getServer().getPluginManager().registerEvents(new CasinoListener(this), this);
 
         getLogger().info("====================================");
@@ -46,7 +48,7 @@ public final class NovaCassino extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        // Сохранение данных и очистка спавна перед отключением плагина
+        // Очистка спавна станций и сохранение конфигурации перед выключением
         if (casinoManager != null) {
             casinoManager.saveStations();
             casinoManager.getStations().values().forEach(station -> station.clear());
