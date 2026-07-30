@@ -1,17 +1,18 @@
-# Настройки рулетки NovaCassino
-
 station:
   radius: 3.5
-  detection_radius_offset: 2.0 # На сколько блоков шире радиуса искать игроков
-  max_players: 5              # Максимальное кол-во участников в дуэли
+  detection_radius_offset: 2.0
+  max_players: 5
 
-# Настройки кастомной ставки через чат
+preset_bets:
+  slot_10: 100.0
+  slot_12: 500.0
+  slot_14: 2500.0
+
 custom_bet:
   min: 10.0
   max: 100000.0
 
-# Шансы выигрыша для СОЛО-игры (сумма должна быть равно 100%)
-# multiplier: множитель выигрыша (0 = проигрыш)
+# Шансы для одиночного режима рулетки (сумма весов = 100%)
 solo_chances:
   loss:
     chance: 45
@@ -25,9 +26,3 @@ solo_chances:
   jackpot:
     chance: 7
     multiplier: 10.0
-
-# Готовые кнопки ставок в GUI (Слот -> Сумма)
-preset_bets:
-  slot_10: 100.0
-  slot_12: 500.0
-  slot_14: 2500.0
