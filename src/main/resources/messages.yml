@@ -1,0 +1,47 @@
+# Сообщения и тексты интерфейса NovaCassino
+
+prefix: "&8[&dNovaCassino&8] "
+
+# Системные ошибки и предупреждения
+game_already_running: "<red>⛔ На этой станции уже идет рулетка! Дождитесь окончания."
+not_enough_money_solo: "<red>❌ У вас недостаточно средств! Требуется: <gold><amount>$"
+not_enough_money_multi: "<yellow>⚠️ У вас недостаточно средств (<gold><amount>$<yellow>) для участия!"
+not_enough_qualified_players: "<red>❌ Недостаточно игроков с нужным балансом для мультиплеера!"
+bet_must_be_positive: "<red>❌ Ставка должна быть больше 0$!"
+invalid_number: "<red>❌ Некорректное число! Ввод ставки отменен."
+bet_cancelled: "<red>❌ Ввод ставки отменен."
+enter_custom_bet: "<yellow>✍️ Введите желаемую сумму ставки в чат (или 'cancel' для отмены):"
+
+# Уведомления о начале/результате
+join_multi_game: "<green>🎰 Вы в игре! Ставка <gold><amount>$<green> принята."
+solo_loss: "<red>💀 К сожалению, вы проиграли свою ставку."
+solo_win: "<green>🎉 Вы выиграли <gold><amount>$<green> (<multiplier>x)!"
+solo_jackpot: "<light_purple>🔥 ДЖЕКПОТ! Вы выиграли <gold><amount>$<light_purple> (10x)!"
+
+multi_win: "<gold>🏆 ВЫ ЗАБРАЛИ ВЕСЬ БАНК: <green><bold><amount>$!"
+multi_loss: "<red>💀 Вы проиграли... Победитель: <white><winner>"
+
+# Названия GUI и предметов
+gui:
+  title_solo: "<dark_purple><bold>🎰 #<id> | Соло-режим"
+  title_multi: "<dark_purple><bold>🎰 #<id> | Игроков рядом: <count>/<max>"
+  
+  bet_item_name: "<gold><bold><name>"
+  bet_item_lore:
+    - "<gray>Поставить: <green><amount>$"
+    - "<yellow>Нажмите для старта!"
+    
+  custom_item_name: "<yellow><bold>✍️ Своя ставка"
+  custom_item_lore:
+    - "<gray>Нажмите, чтобы ввести сумму"
+    - "<gray>прямо в чат!"
+
+# Голограммы на станции
+hologram:
+  solo_active: "<gold><bold>🎰 СОЛО РУЛЕТКА 🎰\n<gray>Игрок: <white><player>\n<gray>Ставка: <green><amount>$"
+  solo_win: "<green><bold>🎉 ВЫИГРЫШ! 🎉\n<gold>+<amount>$ (<multiplier>x)"
+  solo_jackpot: "<light_purple><bold>🔥 ДЖЕКПОТ! 🔥\n<gold>+<amount>$"
+  solo_loss: "<red><bold>❌ ПРОИГРЫШ ❌"
+  
+  multi_active: "<gold><bold>⚔️ БИТВА ЗА БАНК: <amount>$ ⚔️\n<gray>Участников: <green><count> чел."
+  multi_win: "<green><bold>🏆 ПОБЕДИТЕЛЬ: <winner> 🏆\n<gray>Куш: <gold><bold>+<amount>$"
