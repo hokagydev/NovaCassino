@@ -1,4 +1,4 @@
-package dev.hokagy.novacassino.commands;
+package dev.hokagy.novacassino.command;
 
 import dev.hokagy.novacassino.NovaCassino;
 import dev.hokagy.novacassino.model.CasinoStation;
@@ -8,10 +8,14 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-public class CasinoCommand implements CommandExecutor {
+import java.util.ArrayList;
+import java.util.List;
+
+public class CasinoCommand implements CommandExecutor, TabCompleter {
 
     private final NovaCassino plugin;
 
@@ -117,6 +121,7 @@ public class CasinoCommand implements CommandExecutor {
                 case "reload" -> {
                     if (!hasPermission(sender, "procasino.command.reload")) return true;
                     plugin.reloadConfig();
+                    plugin.reloadMessagesConfig();
                     plugin.getCasinoManager().loadStations();
                     sender.sendMessage(Component.text("Конфигурация NovaCassino перезагружена!", NamedTextColor.GREEN));
                 }
@@ -152,5 +157,13 @@ public class CasinoCommand implements CommandExecutor {
     private boolean onlyPlayers(CommandSender sender) {
         sender.sendMessage(Component.text("Команда только для игроков!", NamedTextColor.RED));
         return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+        if (args.length == 1) {
+            return List.of("help", "about", "add", "delete", "teleport", "list", "set", "reload");
+        }
+        return new ArrayList<>();
     }
 }
