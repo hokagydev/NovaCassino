@@ -2,6 +2,7 @@ package dev.hokagy.novacassino;
 
 import dev.hokagy.novacassino.commands.CasinoCommand;
 import dev.hokagy.novacassino.hook.VaultHook;
+import dev.hokagy.novacassino.listener.CasinoListener;
 import dev.hokagy.novacassino.manager.CasinoManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -13,38 +14,45 @@ public final class NovaCassino extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
+
+        // 1. Создание и загрузка дефолтного config.yml
         saveDefaultConfig();
 
-        // 1. Инициализация Vault
+        // 2. Инициализация интеграции с Vault (Экономика)
         if (VaultHook.setupEconomy()) {
-            getLogger().info("Успешное подключение к Vault (Экономика)!");
+            getLogger().info("Успешная интеграция с Vault! Экономика подключена.");
         } else {
-            getLogger().warning("Vault не найден! Функции ставок за деньги отключены.");
+            getLogger().warning("Vault или плагин экономики не найден! Ставки за деньги работать не будут.");
         }
 
-        // 2. Инициализация менеджера казино
+        // 3. Инициализация менеджера казино и загрузка станций из конфига
         casinoManager = new CasinoManager(this);
         casinoManager.loadStations();
 
-        // 3. Регистрация команд
+        // 4. Регистрация команд (/procasino, /casino, /novacasino)
         if (getCommand("procasino") != null) {
             getCommand("procasino").setExecutor(new CasinoCommand(this));
         }
 
+        // 5. Регистрация слушателя событий (ПКМ по станции и меню ставок)
+        getServer().getPluginManager().registerEvents(new CasinoListener(this), this);
+
         getLogger().info("====================================");
         getLogger().info(" NovaCassino v1.0.0 успешно запущен!");
         getLogger().info(" Автор: Hokagydev");
+        getLogger().info(" Версия: Paper 1.21.1");
         getLogger().info("====================================");
     }
 
     @Override
     public void onDisable() {
+        // Сохранение данных и очистка спавна перед отключением плагина
         if (casinoManager != null) {
             casinoManager.saveStations();
-            // Очищаем сущности из мира при выключении/перезагрузке
-            casinoManager.getStations().values().forEach(st -> st.clear());
+            casinoManager.getStations().values().forEach(station -> station.clear());
         }
-        getLogger().info("NovaCassino выключен.");
+
+        getLogger().info("NovaCassino успешно выключен.");
     }
 
     public static NovaCassino getInstance() {
