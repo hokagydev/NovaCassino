@@ -26,7 +26,6 @@ public class WandListener implements Listener {
         ItemStack item = player.getInventory().getItemInMainHand();
 
         if (item.getType() != Material.WOODEN_AXE || !item.hasItemMeta()) return;
-        if (!item.getItemMeta().hasDisplayName()) return;
 
         Block clicked = event.getClickedBlock();
         if (clicked == null) return;
