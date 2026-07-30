@@ -32,15 +32,20 @@ public class CasinoStation {
         this.type = type;
         this.centerLocation = centerLocation;
         this.radius = radius;
+        
+        // Спавним структуру и голограмму сразу при инициализации
+        spawn();
     }
 
     public void spawn() {
         clear();
 
-        // 1. Голограмма над центром
+        if (centerLocation.getWorld() == null) return;
+
+        // 1. Голограмма над центром (фон полностью прозрачный ARGB: 0, 0, 0, 0)
         hologram = centerLocation.getWorld().spawn(centerLocation.clone().add(0, 2.2, 0), TextDisplay.class, text -> {
             text.setBillboard(Display.Billboard.CENTER);
-            text.setBackgroundColor(Color.fromARGB(120, 0, 0, 0));
+            text.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
         });
         resetHologram();
 
@@ -72,6 +77,9 @@ public class CasinoStation {
     public void updateHologram(Component text) {
         if (hologram != null && !hologram.isDead()) {
             hologram.text(text);
+        } else {
+            spawn();
+            if (hologram != null) hologram.text(text);
         }
     }
 
@@ -95,10 +103,16 @@ public class CasinoStation {
         ringBlocks.clear();
     }
 
+    public void remove() {
+        clear();
+    }
+
     public int getId() { return id; }
     public String getType() { return type; }
     public Location getCenterLocation() { return centerLocation; }
     public double getRadius() { return radius; }
+    public TextDisplay getHologram() { return hologram; }
+    
     public void setRadius(double radius) { 
         this.radius = radius; 
         spawn(); 
