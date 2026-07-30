@@ -29,27 +29,22 @@ public final class NovaCassino extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
-        // 1. Инициализация конфигураций
         saveDefaultConfig();
         reloadConfig();
         createMessagesConfig();
 
-        // 2. Инициализация хука экономики (Vault)
         if (!VaultHook.setupEconomy()) {
             getLogger().warning("Vault или плагин экономики не найден! Денежные ставки работать не будут.");
         }
 
-        // 3. Инициализация менеджеров (Выделение точек + Станции)
         this.selectionManager = new SelectionManager();
         this.casinoManager = new CasinoManager(this);
         this.casinoManager.loadStations();
 
-        // 4. Регистрация слушателей событий (Рулетка + Игровые автоматы + Выделение палочкой)
         getServer().getPluginManager().registerEvents(new CasinoListener(this), this);
         getServer().getPluginManager().registerEvents(new SlotInteractionListener(this), this);
         getServer().getPluginManager().registerEvents(new WandListener(this), this);
 
-        // 5. Регистрация команд
         if (getCommand("procasino") != null) {
             CasinoCommand commandExecutor = new CasinoCommand(this);
             getCommand("procasino").setExecutor(commandExecutor);
@@ -63,7 +58,6 @@ public final class NovaCassino extends JavaPlugin {
     public void onDisable() {
         if (this.casinoManager != null) {
             this.casinoManager.saveStations();
-            // 🔥 Вызываем удаление всех голограмм и блоков с карты при выключении/релоаде
             this.casinoManager.removeAllEntities();
         }
         getLogger().info("NovaCassino выключен.");
