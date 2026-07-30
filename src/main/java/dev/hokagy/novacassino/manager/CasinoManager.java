@@ -100,9 +100,8 @@ public class CasinoManager {
     public boolean deleteStation(int id) {
         if (stations.containsKey(id)) {
             CasinoStation station = stations.remove(id);
-            if (station.getHologram() != null) {
-                station.getHologram().remove();
-            }
+            // 🔥 Очищаем голограмму/энтити станции безопасным вызовом
+            station.remove();
             saveStations();
             return true;
         }
