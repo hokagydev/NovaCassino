@@ -129,7 +129,13 @@ public class SlotMachineTask extends BukkitRunnable {
         if (loc.getWorld() == null) return;
         Firework fw = loc.getWorld().spawn(loc, Firework.class);
         FireworkMeta meta = fw.getFireworkMeta();
-        meta.addEffect(FireworkEffect.builder().withColor(Color.GOLD).with(FireworkEffect.Type.BALL_LARGE).build());
+        
+        // 🔥 Исправлено: заменено на точный RGB цвет золота
+        meta.addEffect(FireworkEffect.builder()
+                .withColor(Color.fromRGB(255, 215, 0))
+                .with(FireworkEffect.Type.BALL_LARGE)
+                .build());
+                
         meta.setPower(1);
         fw.setFireworkMeta(meta);
     }
