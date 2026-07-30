@@ -15,7 +15,6 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -24,6 +23,9 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.joml.AxisAngle4f;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,7 +35,6 @@ public class CasinoListener implements Listener {
 
     private final NovaCassino plugin;
     private final Random random = new Random();
-    // Карта активных игр, чтобы нельзя было запустить сразу несколько вращений на одной станции
     private final Map<Integer, Boolean> activeGames = new HashMap<>();
 
     public CasinoListener(NovaCassino plugin) {
@@ -95,7 +96,6 @@ public class CasinoListener implements Listener {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || !clicked.hasItemMeta()) return;
 
-        // Извлекаем ID станции из названия GUI
         int stationId = -1;
         try {
             String idStr = title.substring(title.indexOf("#") + 1, title.indexOf(" |"));
@@ -121,9 +121,8 @@ public class CasinoListener implements Listener {
                 VaultHook.getEconomy().withdrawPlayer(player, bet);
                 player.sendMessage(Component.text("Ставка ", NamedTextColor.GREEN)
                         .append(Component.text(bet + "$", NamedTextColor.GOLD))
-                        .append(Component.text(" принята! Крутим рулетку...", NamedTextColor.GREEN)));
+                        .append(Component.text(" принята! Удачи!", NamedTextColor.GREEN)));
 
-                // Запуск анимации вращения вокруг арены
                 startSpinAnimation(player, station, bet);
 
             } else {
@@ -132,60 +131,92 @@ public class CasinoListener implements Listener {
         }
     }
 
-    // 🌟 ПОЛНОЦЕННАЯ 3D-АНИМАЦИЯ ВРАЩЕНИЯ С ЧАСТИЦАМИ И ОБНОВЛЕНИЕМ ГОЛОГРАММЫ
     private void startSpinAnimation(Player player, CasinoStation station, double bet) {
         activeGames.put(station.getId(), true);
 
-        // Обновляем текст голограммы
         station.updateHologram(
-                Component.text("🎰 КРУТИТСЯ РУЛЕТКА! 🎰", NamedTextColor.GOLD, TextDecoration.BOLD)
+                Component.text("🎰 ВРАЩЕНИЕ РУЛЕТКИ... 🎰", NamedTextColor.GOLD, TextDecoration.BOLD)
                         .append(Component.text("\nИгрок: ", NamedTextColor.GRAY)).append(Component.text(player.getName(), NamedTextColor.WHITE))
                         .append(Component.text("\nСтавка: ", NamedTextColor.GRAY)).append(Component.text(bet + "$", NamedTextColor.GREEN))
         );
 
-        // Создаем плавающий предмет в центре
         Location centerLoc = station.getCenterLocation();
-        ItemDisplay centerStar = centerLoc.getWorld().spawn(centerLoc.clone().add(0, 1.2, 0), ItemDisplay.class, display -> {
+
+        ItemDisplay centerStar = centerLoc.getWorld().spawn(centerLoc.clone().add(0, 1.3, 0), ItemDisplay.class, display -> {
             display.setItemStack(new ItemStack(Material.NETHER_STAR));
             display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
         });
 
-        // Определение результата рулетки
+        // Генерация коэффициента: 0x (45%), 1.5x (30%), 3x (18%), 10x (7%)
         int outcome = random.nextInt(100);
-        double multiplier = (outcome < 50) ? 0.0 : (outcome < 88 ? 2.0 : 5.0); // 50% - 0x, 38% - 2x, 12% - 5x
+        double multiplier;
+        if (outcome < 45) {
+            multiplier = 0.0;
+        } else if (outcome < 75) {
+            multiplier = 1.5;
+        } else if (outcome < 93) {
+            multiplier = 3.0;
+        } else {
+            multiplier = 10.0; // ДЖЕКПОТ!
+        }
 
         new BukkitRunnable() {
             int ticks = 0;
-            double angle = 0;
-            int maxTicks = 120; // 6 секунд вращения
+            double ballAngle = 0;
+            float starRotation = 0;
+            int maxTicks = 130;
 
             @Override
             public void run() {
                 ticks++;
 
-                // Плавное замедление шарика
                 double progress = (double) ticks / maxTicks;
-                double speed = Math.max(0.02, (1.0 - Math.pow(progress, 1.5)) * 0.4);
-                angle += speed;
+                double speed = Math.max(0.015, (1.0 - Math.pow(progress, 1.6)) * 0.42);
+                ballAngle += speed;
+                starRotation += 0.15f;
 
-                // Вычисление координат шарика на круге
+                // 1. Анимация центральной звезды
+                double hoverY = Math.sin(ticks * 0.12) * 0.18;
+                Location currentStarLoc = centerLoc.clone().add(0, 1.3 + hoverY, 0);
+                centerStar.teleport(currentStarLoc);
+
+                Quaternionf rot = new Quaternionf(new AxisAngle4f(starRotation, 0, 1, 0));
+                org.bukkit.util.Transformation trans = new org.bukkit.util.Transformation(
+                        new Vector3f(0, 0, 0),
+                        rot,
+                        new Vector3f(1.8f, 1.8f, 1.8f),
+                        new Quaternionf()
+                );
+                centerStar.setInterpolationDuration(1);
+                centerStar.setInterpolationDelay(0);
+                centerStar.setTransformation(trans);
+
+                // 2. Движение шарика и световые лучи
                 double radius = station.getRadius();
-                double x = radius * Math.cos(angle);
-                double z = radius * Math.sin(angle);
+                double x = radius * Math.cos(ballAngle);
+                double z = radius * Math.sin(ballAngle);
                 Location ballLoc = centerLoc.clone().add(x, 0.4, z);
 
-                // --- ЧАСТИЦЫ И ЭФФЕКТЫ ---
-                // 1. Светящийся след за шариком
-                ballLoc.getWorld().spawnParticle(Particle.END_ROD, ballLoc, 4, 0.05, 0.05, 0.05, 0.01);
-                ballLoc.getWorld().spawnParticle(Particle.DUST, ballLoc, 3, new Particle.DustOptions(Color.fromRGB(255, 215, 0), 1.2f));
+                int raySteps = 7;
+                for (int i = 0; i <= raySteps; i++) {
+                    double ratio = (double) i / raySteps;
+                    Location rayPoint = centerLoc.clone().add(x * ratio, 0.5 + (hoverY * (1 - ratio)), z * ratio);
+                    rayPoint.getWorld().spawnParticle(
+                            Particle.DUST,
+                            rayPoint,
+                            1,
+                            new Particle.DustOptions(Color.fromRGB(255, 215, 0), 0.7f)
+                    );
+                }
 
-                // 2. Кольцевые частицы от центра к шарику
+                // Частицы шарика
+                ballLoc.getWorld().spawnParticle(Particle.END_ROD, ballLoc, 3, 0.04, 0.04, 0.04, 0.01);
+                ballLoc.getWorld().spawnParticle(Particle.GLOW, ballLoc, 2, 0.08, 0.08, 0.08, 0.01);
+
                 if (ticks % 2 == 0) {
-                    centerLoc.getWorld().spawnParticle(Particle.WITCH, centerLoc.clone().add(0, 0.5, 0), 2, 0.2, 0.2, 0.2, 0.01);
                     player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.6f, (float) (1.2 + (1.0 - progress)));
                 }
 
-                // Конец анимации
                 if (ticks >= maxTicks) {
                     this.cancel();
                     centerStar.remove();
@@ -202,39 +233,57 @@ public class CasinoListener implements Listener {
                 VaultHook.getEconomy().depositPlayer(player, winAmount);
             }
 
-            // Фейерверк и эффект на месте остановившегося шарика
-            winLoc.getWorld().spawnParticle(Particle.FIREWORK, winLoc, 40, 0.3, 0.3, 0.3, 0.15);
-            winLoc.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, winLoc, 50, 0.5, 0.5, 0.5, 0.2);
-            player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+            if (multiplier >= 10.0) {
+                // 🎉 ДЖЕКПОТ (10x)
+                winLoc.getWorld().strikeLightningEffect(winLoc);
+                winLoc.getWorld().spawnParticle(Particle.FIREWORK, winLoc, 80, 0.5, 0.5, 0.5, 0.2);
+                winLoc.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, winLoc, 100, 0.8, 0.8, 0.8, 0.3);
+                player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 0.8f);
 
-            // Обновляем голограмму
-            station.updateHologram(
-                    Component.text("🎉 ВЫИГРЫШ! 🎉", NamedTextColor.GREEN, TextDecoration.BOLD)
-                            .append(Component.text("\nИгрок: ", NamedTextColor.GRAY)).append(Component.text(player.getName(), NamedTextColor.WHITE))
-                            .append(Component.text("\nКуш: ", NamedTextColor.GOLD)).append(Component.text("+" + winAmount + "$ (" + multiplier + "x)", NamedTextColor.GREEN, TextDecoration.BOLD))
-            );
+                station.updateHologram(
+                        Component.text("🔥 ДЖЕКПОТ 10X! 🔥", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)
+                                .append(Component.text("\nПобедитель: ", NamedTextColor.GRAY)).append(Component.text(player.getName(), NamedTextColor.GOLD))
+                                .append(Component.text("\nВыигрыш: ", NamedTextColor.YELLOW)).append(Component.text("+" + winAmount + "$", NamedTextColor.GREEN, TextDecoration.BOLD))
+                );
 
-            player.sendMessage(Component.text(" Вы выиграли ", NamedTextColor.GOLD)
-                    .append(Component.text(winAmount + "$", NamedTextColor.GREEN, TextDecoration.BOLD))
-                    .append(Component.text(" (" + multiplier + "x)!", NamedTextColor.GOLD)));
+                Bukkit.broadcast(Component.text("🎰 Игрок ", NamedTextColor.GOLD)
+                        .append(Component.text(player.getName(), NamedTextColor.YELLOW, TextDecoration.BOLD))
+                        .append(Component.text(" сорвал ДЖЕКПОТ ", NamedTextColor.GOLD))
+                        .append(Component.text("+" + winAmount + "$ (10x)", NamedTextColor.GREEN, TextDecoration.BOLD))
+                        .append(Component.text(" в NovaCassino!", NamedTextColor.GOLD)));
+
+            } else {
+                // Обычный выигрыш (1.5x / 3x)
+                winLoc.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, winLoc, 50, 0.4, 0.4, 0.4, 0.15);
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
+
+                station.updateHologram(
+                        Component.text("🎉 ВЫИГРЫШ! 🎉", NamedTextColor.GREEN, TextDecoration.BOLD)
+                                .append(Component.text("\nИгрок: ", NamedTextColor.GRAY)).append(Component.text(player.getName(), NamedTextColor.WHITE))
+                                .append(Component.text("\nКуш: ", NamedTextColor.GOLD)).append(Component.text("+" + winAmount + "$ (" + multiplier + "x)", NamedTextColor.GREEN, TextDecoration.BOLD))
+                );
+
+                player.sendMessage(Component.text(" Поздравляем! Вы выиграли ", NamedTextColor.GOLD)
+                        .append(Component.text(winAmount + "$", NamedTextColor.GREEN, TextDecoration.BOLD))
+                        .append(Component.text(" (" + multiplier + "x)!", NamedTextColor.GOLD)));
+            }
 
         } else {
-            // Проигрыш
-            winLoc.getWorld().spawnParticle(Particle.SMOKE, winLoc, 30, 0.2, 0.2, 0.2, 0.05);
-            winLoc.getWorld().spawnParticle(Particle.ANGRY_VILLAGER, winLoc, 5, 0.2, 0.2, 0.2, 0.0);
-            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+            // Проигрыш (0x)
+            winLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, winLoc, 25, 0.3, 0.3, 0.3, 0.05);
+            winLoc.getWorld().spawnParticle(Particle.ANGRY_VILLAGER, winLoc, 6, 0.3, 0.3, 0.3, 0.0);
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 0.9f);
 
-            // Обновляем голограмму
             station.updateHologram(
                     Component.text("❌ ПРОИГРЫШ ❌", NamedTextColor.RED, TextDecoration.BOLD)
                             .append(Component.text("\nИгрок: ", NamedTextColor.GRAY)).append(Component.text(player.getName(), NamedTextColor.WHITE))
                             .append(Component.text("\nПовезет в следующий раз!", NamedTextColor.GRAY))
             );
 
-            player.sendMessage(Component.text(" Ставка проиграна...", NamedTextColor.RED));
+            player.sendMessage(Component.text(" Ставка не сыграла. Попробуйте еще раз!", NamedTextColor.RED));
         }
 
-        // Через 5 секунд возвращаем голограмму в исходное состояние ожидания
+        // Возврат голограммы через 5 секунд
         new BukkitRunnable() {
             @Override
             public void run() {
