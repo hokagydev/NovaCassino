@@ -9,6 +9,7 @@ import org.bukkit.Material;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
@@ -33,16 +34,16 @@ public class CasinoStation {
         this.centerLocation = centerLocation;
         this.radius = radius;
         
-        // Спавним структуру и голограмму сразу при инициализации
         spawn();
     }
 
     public void spawn() {
+        // Очищаем существующие объекты в памяти и физически в мире
         clear();
 
-        if (centerLocation.getWorld() == null) return;
+        if (centerLocation == null || centerLocation.getWorld() == null) return;
 
-        // 1. Голограмма над центром (фон полностью прозрачный ARGB: 0, 0, 0, 0)
+        // 1. Голограмма над центром
         hologram = centerLocation.getWorld().spawn(centerLocation.clone().add(0, 2.2, 0), TextDisplay.class, text -> {
             text.setBillboard(Display.Billboard.CENTER);
             text.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
@@ -77,9 +78,6 @@ public class CasinoStation {
     public void updateHologram(Component text) {
         if (hologram != null && !hologram.isDead()) {
             hologram.text(text);
-        } else {
-            spawn();
-            if (hologram != null) hologram.text(text);
         }
     }
 
@@ -92,6 +90,7 @@ public class CasinoStation {
     }
 
     public void clear() {
+        // 1. Удаляем по прямым ссылкам
         if (hologram != null && !hologram.isDead()) {
             hologram.remove();
         }
@@ -101,6 +100,16 @@ public class CasinoStation {
             }
         }
         ringBlocks.clear();
+
+        // 2. 🔥 ЖЁСТКАЯ ЗАЧИСТКА: Удаляем зависшие ассеты в мире в радиусе станции
+        if (centerLocation != null && centerLocation.getWorld() != null) {
+            double searchRadius = radius + 2.0;
+            for (Entity entity : centerLocation.getWorld().getNearbyEntities(centerLocation, searchRadius, 5.0, searchRadius)) {
+                if (entity instanceof BlockDisplay || entity instanceof TextDisplay) {
+                    entity.remove();
+                }
+            }
+        }
     }
 
     public void remove() {
@@ -112,7 +121,7 @@ public class CasinoStation {
     public Location getCenterLocation() { return centerLocation; }
     public double getRadius() { return radius; }
     public TextDisplay getHologram() { return hologram; }
-    
+
     public void setRadius(double radius) { 
         this.radius = radius; 
         spawn(); 
