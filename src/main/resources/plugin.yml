@@ -4,7 +4,6 @@ main: dev.hokagy.novacassino.NovaCassino
 api-version: '1.21'
 author: Hokagydev
 softdepend: [Vault]
-description: Продвинутая система станций казино с 3D-рулетками.
 
 commands:
   procasino:
@@ -25,10 +24,4 @@ permissions:
   procasino.command.reload:
     default: op
   procasino.command.set:
-    default: op
-  procasino.bypass.max-bets-per-day:
-    default: op
-  procasino.bypass.max-bets-per-round:
-    default: op
-  procasino.bypass.max-bet-amount-per-round:
     default: op
