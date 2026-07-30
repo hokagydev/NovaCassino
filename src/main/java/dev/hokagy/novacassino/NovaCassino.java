@@ -1,61 +1,105 @@
 package dev.hokagy.novacassino;
 
-import dev.hokagy.novacassino.commands.CasinoCommand;
-import dev.hokagy.novacassino.commands.CasinoTabCompleter;
+import dev.hokagy.novacassino.command.CasinoCommand;
 import dev.hokagy.novacassino.hook.VaultHook;
 import dev.hokagy.novacassino.listener.CasinoListener;
 import dev.hokagy.novacassino.manager.CasinoManager;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.logging.Level;
 
 public final class NovaCassino extends JavaPlugin {
 
     private static NovaCassino instance;
     private CasinoManager casinoManager;
 
+    private File messagesFile;
+    private FileConfiguration messagesConfig;
+
     @Override
     public void onEnable() {
         instance = this;
 
-        // 1. Сохранение дефолтного config.yml
+        // 1. Инициализация конфигураций
         saveDefaultConfig();
+        createMessagesConfig();
 
-        // 2. Инициализация интеграции с Vault
-        if (VaultHook.setupEconomy()) {
-            getLogger().info("Успешная интеграция с Vault! Экономика подключена.");
-        } else {
-            getLogger().warning("Vault или плагин экономики не найден! Ставки за деньги отключены.");
+        // 2. Инициализация хука экономики (Vault)
+        if (!VaultHook.setupEconomy()) {
+            getLogger().warning("Vault или плагин экономики не найден! Денежные ставки работать не будут.");
         }
 
-        // 3. Инициализация менеджера казино
-        casinoManager = new CasinoManager(this);
-        casinoManager.loadStations();
+        // 3. Инициализация менеджера станций
+        this.casinoManager = new CasinoManager(this);
+        this.casinoManager.loadStations();
 
-        // 4. Регистрация команд и автодополнения (TabCompleter)
-        if (getCommand("procasino") != null) {
-            getCommand("procasino").setExecutor(new CasinoCommand(this));
-            getCommand("procasino").setTabCompleter(new CasinoTabCompleter(this));
-        }
-
-        // 5. Регистрация слушателя событий (GUI и 3D-анимации)
+        // 4. Регистрация слушателей событий
         getServer().getPluginManager().registerEvents(new CasinoListener(this), this);
 
-        getLogger().info("====================================");
-        getLogger().info(" NovaCassino v1.0.0 успешно запущен!");
-        getLogger().info(" Автор: Hokagydev");
-        getLogger().info(" Версия: Paper 1.21.1");
-        getLogger().info("====================================");
+        // 5. Регистрация команд
+        if (getCommand("novacassino") != null) {
+            CasinoCommand commandExecutor = new CasinoCommand(this);
+            getCommand("novacassino").setExecutor(commandExecutor);
+            getCommand("novacassino").setTabCompleter(commandExecutor);
+        }
+
+        getLogger().info("NovaCassino успешно включен!");
     }
 
     @Override
     public void onDisable() {
-        // Очистка спавна станций и сохранение конфигурации перед выключением
-        if (casinoManager != null) {
-            casinoManager.saveStations();
-            casinoManager.getStations().values().forEach(station -> station.clear());
+        if (this.casinoManager != null) {
+            this.casinoManager.saveStations();
+        }
+        getLogger().info("NovaCassino выключен.");
+    }
+
+    // --- Управление messages.yml ---
+
+    private void createMessagesConfig() {
+        messagesFile = new File(getDataFolder(), "messages.yml");
+        if (!messagesFile.exists()) {
+            messagesFile.getParentFile().mkdirs();
+            saveResource("messages.yml", false);
         }
 
-        getLogger().info("NovaCassino успешно выключен.");
+        messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
     }
+
+    /**
+     * Геттер для сообщения из messages.yml (устраняет ошибку компиляции в CasinoListener)
+     */
+    public FileConfiguration getMessagesConfig() {
+        if (messagesConfig == null) {
+            reloadMessagesConfig();
+        }
+        return this.messagesConfig;
+    }
+
+    /**
+     * Перезагрузка файла messages.yml для команды /novacassino reload
+     */
+    public void reloadMessagesConfig() {
+        if (messagesFile == null) {
+            messagesFile = new File(getDataFolder(), "messages.yml");
+        }
+        messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+
+        InputStream defaultStream = getResource("messages.yml");
+        if (defaultStream != null) {
+            YamlConfiguration defaultConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(defaultStream, StandardCharsets.UTF_8));
+            messagesConfig.setDefaults(defaultConfig);
+        }
+    }
+
+    // --- Геттеры главного класса ---
 
     public static NovaCassino getInstance() {
         return instance;
