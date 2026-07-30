@@ -4,7 +4,9 @@ import dev.hokagy.novacassino.command.CasinoCommand;
 import dev.hokagy.novacassino.hook.VaultHook;
 import dev.hokagy.novacassino.listener.CasinoListener;
 import dev.hokagy.novacassino.listener.SlotInteractionListener;
+import dev.hokagy.novacassino.listener.WandListener;
 import dev.hokagy.novacassino.manager.CasinoManager;
+import dev.hokagy.novacassino.manager.SelectionManager;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -18,6 +20,7 @@ public final class NovaCassino extends JavaPlugin {
 
     private static NovaCassino instance;
     private CasinoManager casinoManager;
+    private SelectionManager selectionManager;
 
     private File messagesFile;
     private FileConfiguration messagesConfig;
@@ -36,13 +39,15 @@ public final class NovaCassino extends JavaPlugin {
             getLogger().warning("Vault или плагин экономики не найден! Денежные ставки работать не будут.");
         }
 
-        // 3. Инициализация менеджера станций
+        // 3. Инициализация менеджеров (Выделение точек + Станции)
+        this.selectionManager = new SelectionManager();
         this.casinoManager = new CasinoManager(this);
         this.casinoManager.loadStations();
 
-        // 4. Регистрация слушателей событий (Рулетка + Игровые автоматы)
+        // 4. Регистрация слушателей событий (Рулетка + Игровые автоматы + Выделение палочкой)
         getServer().getPluginManager().registerEvents(new CasinoListener(this), this);
         getServer().getPluginManager().registerEvents(new SlotInteractionListener(this), this);
+        getServer().getPluginManager().registerEvents(new WandListener(this), this);
 
         // 5. Регистрация команд
         if (getCommand("procasino") != null) {
@@ -108,5 +113,9 @@ public final class NovaCassino extends JavaPlugin {
 
     public CasinoManager getCasinoManager() {
         return casinoManager;
+    }
+
+    public SelectionManager getSelectionManager() {
+        return selectionManager;
     }
 }
