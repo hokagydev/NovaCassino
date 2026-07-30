@@ -32,7 +32,7 @@ public class SlotInteractionListener implements Listener {
             CasinoStation matchedStation = null;
             for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
                 if ("SLOTS".equalsIgnoreCase(station.getType())) {
-                    if (station.getCenterLocation().getWorld().equals(clickedBlock.getWorld())
+                    if (station.getCenterLocation() != null && station.getCenterLocation().getWorld().equals(clickedBlock.getWorld())
                             && station.getCenterLocation().distance(clickedBlock.getLocation()) <= 5.0) {
                         matchedStation = station;
                         break;
