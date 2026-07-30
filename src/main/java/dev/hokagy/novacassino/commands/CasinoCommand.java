@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class CasinoCommand implements CommandExecutor, TabCompleter {
 
@@ -49,7 +50,7 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                         player.sendMessage(Component.text("Использование: /procasino add <тип> (Пример: ROULETTE)", NamedTextColor.RED));
                         return true;
                     }
-                    CasinoStation station = plugin.getCasinoManager().createStation(args[1], player.getLocation());
+                    CasinoStation station = plugin.getCasinoManager().createStation(args[1].toUpperCase(), player.getLocation());
                     player.sendMessage(Component.text("Станция казино #" + station.getId() + " (" + station.getType() + ") создана!", NamedTextColor.GREEN));
                 }
                 case "delete" -> {
@@ -159,11 +160,45 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    // 🌟 УДОБНЫЙ ТАБ-КОМПЛИТЕР
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+        List<String> completions = new ArrayList<>();
+
         if (args.length == 1) {
-            return List.of("help", "about", "add", "delete", "teleport", "list", "set", "reload");
+            List<String> subCommands = List.of("help", "about", "add", "delete", "teleport", "list", "set", "reload");
+            return filterCompletions(subCommands, args[0]);
         }
-        return new ArrayList<>();
+
+        if (args.length == 2) {
+            if (args[0].equalsIgnoreCase("add")) {
+                List<String> types = List.of("ROULETTE", "SLOTS", "WHEEL");
+                return filterCompletions(types, args[1]);
+            }
+
+            if (args[0].equalsIgnoreCase("delete") || args[0].equalsIgnoreCase("teleport") || args[0].equalsIgnoreCase("set")) {
+                // Подгружает существующие ID созданных станций
+                List<String> stationIds = plugin.getCasinoManager().getStations().keySet().stream()
+                        .map(String::valueOf)
+                        .collect(Collectors.toList());
+                return filterCompletions(stationIds, args[1]);
+            }
+        }
+
+        if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
+            return filterCompletions(List.of("radius"), args[2]);
+        }
+
+        if (args.length == 4 && args[0].equalsIgnoreCase("set") && args[2].equalsIgnoreCase("radius")) {
+            return filterCompletions(List.of("2.5", "3.5", "5.0"), args[3]);
+        }
+
+        return completions;
+    }
+
+    private List<String> filterCompletions(List<String> list, String input) {
+        return list.stream()
+                .filter(item -> item.toLowerCase().startsWith(input.toLowerCase()))
+                .collect(Collectors.toList());
     }
 }
