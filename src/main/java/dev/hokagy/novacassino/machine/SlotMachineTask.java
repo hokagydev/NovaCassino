@@ -14,7 +14,6 @@ import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.util.Vector;
 
 import java.util.Arrays;
 import java.util.List;
@@ -24,13 +23,11 @@ public class SlotMachineTask extends BukkitRunnable {
 
     private final NovaCassino plugin;
     private final Player player;
-    private final Location startCorner; // Нижний левый угол 3x3 за стеклом
-    private final Vector rightVector;   // Вектор смещения по ширине (вправо)
+    private final Location startCorner;
     private final double betAmount;
 
-    // 🔥 Безопасные блоки! (TNT заменен на RED_CONCRETE / RED_WOOL, чтобы исключить детонацию)
     private final List<Material> symbols = Arrays.asList(
-            Material.RED_CONCRETE,    // Вместо TNT
+            Material.RED_CONCRETE,
             Material.CACTUS,
             Material.DIAMOND_BLOCK,
             Material.GOLD_BLOCK,
@@ -42,11 +39,10 @@ public class SlotMachineTask extends BukkitRunnable {
     private final Random random = new Random();
     private int ticks = 0;
 
-    public SlotMachineTask(NovaCassino plugin, Player player, Location startCorner, Vector rightVector, double betAmount) {
+    public SlotMachineTask(NovaCassino plugin, Player player, Location startCorner, double betAmount) {
         this.plugin = plugin;
         this.player = player;
         this.startCorner = startCorner;
-        this.rightVector = rightVector;
         this.betAmount = betAmount;
     }
 
@@ -54,7 +50,6 @@ public class SlotMachineTask extends BukkitRunnable {
     public void run() {
         ticks++;
 
-        // Анимация замедления колонок
         for (int col = 0; col < 3; col++) {
             if (ticks < 15 || (ticks < 25 && col > 0) || (ticks < 35 && col > 1)) {
                 for (int row = 0; row < 3; row++) {
@@ -75,13 +70,8 @@ public class SlotMachineTask extends BukkitRunnable {
     private void renderGrid() {
         for (int col = 0; col < 3; col++) {
             for (int row = 0; row < 3; row++) {
-                // Вычисляем точную позицию в мире с учетом направления автомата
-                Location blockLoc = startCorner.clone()
-                        .add(rightVector.clone().multiply(col))
-                        .add(0, row, 0);
-
+                Location blockLoc = startCorner.clone().add(col, row, 0);
                 Block block = blockLoc.getBlock();
-                // 🔥 ВАЖНО: false отключает физику (physics update), блоки не падают и не взрываются
                 block.setType(currentGrid[col][row], false);
             }
         }
@@ -91,7 +81,6 @@ public class SlotMachineTask extends BukkitRunnable {
         boolean win = false;
         Material winningMat = null;
 
-        // Проверка по горизонтали
         for (int row = 0; row < 3; row++) {
             if (currentGrid[0][row] == currentGrid[1][row] && currentGrid[1][row] == currentGrid[2][row]) {
                 win = true;
@@ -100,7 +89,6 @@ public class SlotMachineTask extends BukkitRunnable {
             }
         }
 
-        // Проверка по вертикали
         if (!win) {
             for (int col = 0; col < 3; col++) {
                 if (currentGrid[col][0] == currentGrid[col][1] && currentGrid[col][1] == currentGrid[col][2]) {
@@ -115,7 +103,7 @@ public class SlotMachineTask extends BukkitRunnable {
             double multiplier = getMultiplier(winningMat);
             double prize = betAmount * multiplier;
             player.playSound(startCorner, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-            spawnFirework(startCorner.clone().add(0, 3, 0));
+            spawnFirework(startCorner.clone().add(1, 3, 0));
 
             player.sendMessage(Component.text("🎉 ВЫИГРЫШ! ", NamedTextColor.GREEN, TextDecoration.BOLD)
                     .append(Component.text("Вы собрали 3 в ряд и выиграли $" + prize, NamedTextColor.GOLD)));
