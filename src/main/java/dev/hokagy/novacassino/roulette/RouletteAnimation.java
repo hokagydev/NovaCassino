@@ -4,11 +4,11 @@ import dev.hokagy.novacassino.NovaCassino;
 import dev.hokagy.novacassino.hook.VaultHook;
 import dev.hokagy.novacassino.model.CasinoStation;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -17,19 +17,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Управляет анимацией рулетки.
- * Исправления:
- *  - Адаптация под Paper API 1.21.1 (Particle.HAPPY_VILLAGER и Particle.EXPLOSION_EMITTER)
- *  - Безопасное использование VaultHook.getEconomy()
- *  - Расчет шансов и мультипликаторов из config.yml (solo_chances)
- */
 public class RouletteAnimation {
 
     private final NovaCassino plugin;
     private final CasinoStation station;
     private final Player player;
     private final double betAmount;
+    private final MiniMessage miniMessage = MiniMessage.miniMessage();
 
     public RouletteAnimation(NovaCassino plugin, CasinoStation station, Player player, double betAmount) {
         this.plugin = plugin;
@@ -50,6 +44,9 @@ public class RouletteAnimation {
 
         final int targetIndex = ThreadLocalRandom.current().nextInt(activeStands.size());
         final int totalTicks = 80 + targetIndex;
+
+        // Обновляем голограмму при старте вращения (hologram.solo_active)
+        updateHologramFromConfig("hologram.solo_active", betAmount, 0.0);
 
         new BukkitRunnable() {
             int currentTick = 0;
@@ -88,8 +85,6 @@ public class RouletteAnimation {
                     loc.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, loc, 5, 0.1, 0.1, 0.1, 0);
                     loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.5f);
                 }
-
-                station.updateHologram(Component.text("🎰 ВРАЩЕНИЕ... 🎰", NamedTextColor.GOLD, TextDecoration.BOLD));
 
                 currentTick++;
                 currentIndex = (currentIndex + 1) % activeStands.size();
@@ -143,11 +138,13 @@ public class RouletteAnimation {
 
             if (player.isOnline()) {
                 if (multiplier >= 10.0) {
-                    player.sendMessage(Component.text("🔥 ДЖЕКПОТ! Вы выиграли " + payout + "$! (x" + multiplier + ")", NamedTextColor.GOLD, TextDecoration.BOLD));
-                    station.updateHologram(Component.text("🔥 ДЖЕКПОТ: " + payout + "$ 🔥", NamedTextColor.GOLD, TextDecoration.BOLD));
+                    // Сообщение и голограмма для ДЖЕКПОТА
+                    sendMessageFromConfig("solo_jackpot", payout, multiplier);
+                    updateHologramFromConfig("hologram.solo_jackpot", payout, multiplier);
                 } else {
-                    player.sendMessage(Component.text("🎉 Вы выиграли " + payout + "$! (x" + multiplier + ")", NamedTextColor.GREEN, TextDecoration.BOLD));
-                    station.updateHologram(Component.text("ВЫИГРЫШ: " + payout + "$", NamedTextColor.GREEN, TextDecoration.BOLD));
+                    // Сообщение и голограмма для ОБЫЧНОГО ВЫИГРЫША
+                    sendMessageFromConfig("solo_win", payout, multiplier);
+                    updateHologramFromConfig("hologram.solo_win", payout, multiplier);
                 }
             }
         } else {
@@ -155,17 +152,85 @@ public class RouletteAnimation {
                 loc.getWorld().playSound(loc, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             }
             if (player.isOnline()) {
-                player.sendMessage(Component.text("❌ Вы проиграли " + betAmount + "$!", NamedTextColor.RED));
+                // Сообщение и голограмма для ПРОИГРЫША
+                sendMessageFromConfig("solo_loss", betAmount, multiplier);
             }
-            station.updateHologram(Component.text("ПРОИГРЫШ!", NamedTextColor.RED, TextDecoration.BOLD));
+            updateHologramFromConfig("hologram.solo_loss", betAmount, multiplier);
         }
 
+        // Возвращаем дефолтную голограмму через 5 секунд (100 тиков)
         new BukkitRunnable() {
             @Override
             public void run() {
                 station.resetHologram();
             }
         }.runTaskLater(plugin, 100L);
+    }
+
+    /**
+     * Форматирует и отправляет сообщение игроку из messages.yml с поддержкой MiniMessage и Legacy & кодов.
+     */
+    private void sendMessageFromConfig(String path, double amount, double multiplier) {
+        FileConfiguration msgConfig = plugin.getMessagesConfig();
+        String rawMsg = msgConfig.getString(path, "");
+        if (rawMsg.isEmpty()) return;
+
+        String prefix = msgConfig.getString("prefix", "");
+        String fullMsg = prefix + rawMsg;
+
+        fullMsg = replacePlaceholders(fullMsg, amount, multiplier);
+
+        // Конвертируем legacy-цвета & в стандартные теги MiniMessage
+        fullMsg = convertLegacyToMiniMessage(fullMsg);
+
+        player.sendMessage(miniMessage.deserialize(fullMsg));
+    }
+
+    /**
+     * Обновляет голограмму над станцией из messages.yml (с поддержкой переносов строк \n).
+     */
+    private void updateHologramFromConfig(String path, double amount, double multiplier) {
+        FileConfiguration msgConfig = plugin.getMessagesConfig();
+        String rawHolo = msgConfig.getString(path, "");
+        if (rawHolo.isEmpty()) return;
+
+        rawHolo = replacePlaceholders(rawHolo, amount, multiplier);
+        rawHolo = convertLegacyToMiniMessage(rawHolo);
+
+        // В случае многострочного текста спарсенный компонент передаем в станцию
+        Component component = miniMessage.deserialize(rawHolo);
+        station.updateHologram(component);
+    }
+
+    private String replacePlaceholders(String text, double amount, double multiplier) {
+        return text.replace("<amount>", String.valueOf(amount))
+                   .replace("%amount%", String.valueOf(amount))
+                   .replace("<multiplier>", String.valueOf(multiplier))
+                   .replace("%multiplier%", String.valueOf(multiplier))
+                   .replace("<player>", player.getName())
+                   .replace("%player%", player.getName());
+    }
+
+    private String convertLegacyToMiniMessage(String text) {
+        return text.replace("&0", "<black>")
+                   .replace("&1", "<dark_blue>")
+                   .replace("&2", "<dark_green>")
+                   .replace("&3", "<dark_aqua>")
+                   .replace("&4", "<dark_red>")
+                   .replace("&5", "<dark_purple>")
+                   .replace("&6", "<gold>")
+                   .replace("&7", "<gray>")
+                   .replace("&8", "<dark_gray>")
+                   .replace("&9", "<blue>")
+                   .replace("&a", "<green>")
+                   .replace("&b", "<aqua>")
+                   .replace("&c", "<red>")
+                   .replace("&d", "<light_purple>")
+                   .replace("&e", "<yellow>")
+                   .replace("&f", "<white>")
+                   .replace("&l", "<bold>")
+                   .replace("&o", "<italic>")
+                   .replace("&r", "<reset>");
     }
 
     private double calculateMultiplier() {
