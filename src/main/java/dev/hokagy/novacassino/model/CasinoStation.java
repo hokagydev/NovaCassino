@@ -7,7 +7,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +49,7 @@ public class CasinoStation {
     public Location getDisplayEnd() { return displayEnd; }
     public void setDisplayEnd(Location displayEnd) { this.displayEnd = displayEnd; }
 
-    // --- Спавн 3D-круга рулетки (голов по кругу) ---
+    // --- Спавн маленьких блоков по кругу ---
     public void spawnRouletteRing() {
         removeRouletteRing();
 
@@ -58,21 +57,27 @@ public class CasinoStation {
             return;
         }
 
-        int totalSlots = 37; // 1 зеленый (зеро), 18 красных, 18 черных
+        int totalSlots = 37; // 1 зелёный (зеро), 18 красных, 18 чёрных
         for (int i = 0; i < totalSlots; i++) {
             double angle = 2 * Math.PI * i / totalSlots;
             double x = centerLocation.getX() + radius * Math.cos(angle);
             double z = centerLocation.getZ() + radius * Math.sin(angle);
-            Location loc = new Location(centerLocation.getWorld(), x, centerLocation.getY(), z);
+            
+            // Смещение по высоте Y на -0.7, чтобы маленькая стойка опустила голову точно на землю
+            Location loc = new Location(centerLocation.getWorld(), x, centerLocation.getY() - 0.7, z);
 
             ArmorStand stand = centerLocation.getWorld().spawn(loc, ArmorStand.class);
             stand.setGravity(false);
             stand.setCanPickupItems(false);
             stand.setVisible(false);
+            stand.setSmall(true); // <--- Делаем стойку маленькой!
+            stand.setMarker(true); // Отключаем хитбокс, чтобы игрок не спотыкался
 
-            // Определяем цвет сектора (0 = Green, нечетные = Red, четные = Black)
+            // Устанавливаем блоки на голову
             Material headMaterial = (i == 0) ? Material.EMERALD_BLOCK : (i % 2 == 0 ? Material.BLACK_CONCRETE : Material.RED_CONCRETE);
-            stand.getEquipment().setHelmet(new ItemStack(headMaterial));
+            if (stand.getEquipment() != null) {
+                stand.getEquipment().setHelmet(new ItemStack(headMaterial));
+            }
 
             rouletteStands.add(stand);
         }
@@ -99,22 +104,23 @@ public class CasinoStation {
     public void resetHologram() {
         Component defaultText = Component.text("Casino", NamedTextColor.AQUA, TextDecoration.BOLD)
                 .append(Component.newline())
-                .append(Component.text("Кликните чтобы сделать ставку!", NamedTextColor.WHITE))
+                .append(Component.text("Кликните чтобы сделать ставку!", NamedTextColor.WHITE, TextDecoration.BOLD))
                 .append(Component.newline())
-                .append(Component.text("Ожидание игроков...", NamedTextColor.GOLD));
+                .append(Component.text("Ожидание игроков...", NamedTextColor.GOLD, TextDecoration.BOLD));
         updateHologram(defaultText);
     }
 
     private void spawnHologram(Component text) {
         if (centerLocation == null || centerLocation.getWorld() == null) return;
         
-        Location holoLoc = centerLocation.clone().add(0, 1.8, 0);
+        Location holoLoc = centerLocation.clone().add(0, 1.2, 0);
         hologramStand = centerLocation.getWorld().spawn(holoLoc, ArmorStand.class);
         hologramStand.setGravity(false);
         hologramStand.setCanPickupItems(false);
         hologramStand.setCustomNameVisible(true);
         hologramStand.customName(text);
         hologramStand.setVisible(false);
+        hologramStand.setMarker(true);
     }
 
     public void remove() {
