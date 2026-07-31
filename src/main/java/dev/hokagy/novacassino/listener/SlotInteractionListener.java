@@ -46,7 +46,7 @@ public class SlotInteractionListener implements Listener {
                 }
             }
 
-            if (matchedStation == null || matchedStation.getDisplayStart() == null) {
+            if (matchedStation == null || matchedStation.getDisplayStart() == null || matchedStation.getDisplayEnd() == null) {
                 return;
             }
 
@@ -58,7 +58,8 @@ public class SlotInteractionListener implements Listener {
 
             spinningStations.add(matchedStation.getId());
 
-            new SlotMachineTask(plugin, player, matchedStation.getDisplayStart(), matchedStation.getId(), 100.0)
+            // Запускаем анимацию с точными точками pos1 и pos2
+            new SlotMachineTask(plugin, player, matchedStation.getDisplayStart(), matchedStation.getDisplayEnd(), matchedStation.getId(), 100.0)
                     .runTaskTimer(plugin, 0L, 2L);
         }
     }
