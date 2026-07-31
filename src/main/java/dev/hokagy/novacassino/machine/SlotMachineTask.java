@@ -1,6 +1,7 @@
 package dev.hokagy.novacassino.machine;
 
 import dev.hokagy.novacassino.NovaCassino;
+import dev.hokagy.novacassino.listener.SlotInteractionListener;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -23,7 +24,9 @@ public class SlotMachineTask extends BukkitRunnable {
 
     private final NovaCassino plugin;
     private final Player player;
-    private final Location startCorner;
+    private final Location pos1;
+    private final Location pos2;
+    private final int stationId;
     private final double betAmount;
 
     private final List<Material> symbols = Arrays.asList(
@@ -39,10 +42,12 @@ public class SlotMachineTask extends BukkitRunnable {
     private final Random random = new Random();
     private int ticks = 0;
 
-    public SlotMachineTask(NovaCassino plugin, Player player, Location startCorner, double betAmount) {
+    public SlotMachineTask(NovaCassino plugin, Player player, Location pos1, Location pos2, int stationId, double betAmount) {
         this.plugin = plugin;
         this.player = player;
-        this.startCorner = startCorner;
+        this.pos1 = pos1;
+        this.pos2 = pos2;
+        this.stationId = stationId;
         this.betAmount = betAmount;
     }
 
@@ -59,19 +64,32 @@ public class SlotMachineTask extends BukkitRunnable {
         }
 
         renderGrid();
-        player.playSound(startCorner, Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.4f);
+        player.playSound(pos1, Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.4f);
 
         if (ticks >= 35) {
             cancel();
             checkWin();
+            // Снимаем блокировку прокрутки
+            SlotInteractionListener.spinningStations.remove(stationId);
         }
     }
 
     private void renderGrid() {
+        int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
+        int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
+        int minY = Math.min(pos1.getBlockY(), pos2.getBlockY());
+        int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
+        int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
+
+        boolean isXAxis = (maxX - minX) >= (maxZ - minZ);
+
         for (int col = 0; col < 3; col++) {
             for (int row = 0; row < 3; row++) {
-                Location blockLoc = startCorner.clone().add(col, row, 0);
-                Block block = blockLoc.getBlock();
+                int x = isXAxis ? minX + col : minX;
+                int z = isXAxis ? minZ : minZ + col;
+                int y = minY + row;
+
+                Block block = pos1.getWorld().getBlockAt(x, y, z);
                 block.setType(currentGrid[col][row], false);
             }
         }
@@ -102,13 +120,13 @@ public class SlotMachineTask extends BukkitRunnable {
         if (win) {
             double multiplier = getMultiplier(winningMat);
             double prize = betAmount * multiplier;
-            player.playSound(startCorner, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-            spawnFirework(startCorner.clone().add(1, 3, 0));
+            player.playSound(pos1, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+            spawnFirework(pos1.clone().add(0, 3, 0));
 
             player.sendMessage(Component.text("🎉 ВЫИГРЫШ! ", NamedTextColor.GREEN, TextDecoration.BOLD)
                     .append(Component.text("Вы собрали 3 в ряд и выиграли $" + prize, NamedTextColor.GOLD)));
         } else {
-            player.playSound(startCorner, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+            player.playSound(pos1, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             player.sendMessage(Component.text("Увы! Повезет в следующий раз.", NamedTextColor.RED));
         }
     }
