@@ -91,8 +91,8 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                     } else if (type.equals("ROULETTE")) {
                         Location loc = player.getLocation();
                         CasinoStation station = plugin.getCasinoManager().createStation(type, loc);
-                        station.spawnRouletteRing(); // Заспавнить круг из блоков/голов
-                        station.resetHologram();     // Заспавнить стандартную голограмму рулетки
+                        station.spawnRouletteRing(); // Заспавнить круг из маленьких блоков
+                        station.resetHologram();     // Заспавнить голограмму
                         plugin.getCasinoManager().saveStations();
 
                         player.sendMessage(Component.text("Станция казино #" + station.getId() + " (ROULETTE) создана!", NamedTextColor.GREEN));
@@ -162,7 +162,7 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                     CasinoStation st = plugin.getCasinoManager().getStation(id);
                     if (st != null) {
                         st.setRadius(radius);
-                        st.spawnRouletteRing(); // Пересоздать круг при изменении радиуса
+                        st.spawnRouletteRing(); // Обновить круг из маленьких блоков
                         plugin.getCasinoManager().saveStations();
                         sender.sendMessage(Component.text("Радиус станции #" + id + " изменен на " + radius, NamedTextColor.GREEN));
                     } else {
