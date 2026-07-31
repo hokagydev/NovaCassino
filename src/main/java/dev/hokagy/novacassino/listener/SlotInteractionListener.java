@@ -58,7 +58,6 @@ public class SlotInteractionListener implements Listener {
 
             spinningStations.add(matchedStation.getId());
 
-            // Запускаем анимацию с точными точками pos1 и pos2
             new SlotMachineTask(plugin, player, matchedStation.getDisplayStart(), matchedStation.getDisplayEnd(), matchedStation.getId(), 100.0)
                     .runTaskTimer(plugin, 0L, 2L);
         }
