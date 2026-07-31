@@ -24,8 +24,7 @@ public class SlotMachineTask extends BukkitRunnable {
 
     private final NovaCassino plugin;
     private final Player player;
-    private final Location pos1;
-    private final Location pos2;
+    private final Location startCorner;
     private final int stationId;
     private final double betAmount;
 
@@ -42,11 +41,10 @@ public class SlotMachineTask extends BukkitRunnable {
     private final Random random = new Random();
     private int ticks = 0;
 
-    public SlotMachineTask(NovaCassino plugin, Player player, Location pos1, Location pos2, int stationId, double betAmount) {
+    public SlotMachineTask(NovaCassino plugin, Player player, Location startCorner, int stationId, double betAmount) {
         this.plugin = plugin;
         this.player = player;
-        this.pos1 = pos1;
-        this.pos2 = pos2;
+        this.startCorner = startCorner;
         this.stationId = stationId;
         this.betAmount = betAmount;
     }
@@ -64,32 +62,28 @@ public class SlotMachineTask extends BukkitRunnable {
         }
 
         renderGrid();
-        player.playSound(pos1, Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.4f);
+        player.playSound(startCorner, Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.4f);
 
         if (ticks >= 35) {
             cancel();
             checkWin();
-            // Снимаем блокировку прокрутки
+            // Разблокируем станцию для повторных кручений после завершения
             SlotInteractionListener.spinningStations.remove(stationId);
         }
     }
 
     private void renderGrid() {
-        int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
-        int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
-        int minY = Math.min(pos1.getBlockY(), pos2.getBlockY());
-        int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
-        int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
-
-        boolean isXAxis = (maxX - minX) >= (maxZ - minZ);
+        // Определение направления экрана, чтобы он строился плоской стеной 3х3
+        float yaw = player.getLocation().getYaw();
+        boolean facingEastWest = Math.abs(Math.sin(Math.toRadians(yaw))) > 0.7;
 
         for (int col = 0; col < 3; col++) {
             for (int row = 0; row < 3; row++) {
-                int x = isXAxis ? minX + col : minX;
-                int z = isXAxis ? minZ : minZ + col;
-                int y = minY + row;
+                int offsetX = facingEastWest ? 0 : col;
+                int offsetZ = facingEastWest ? col : 0;
 
-                Block block = pos1.getWorld().getBlockAt(x, y, z);
+                Location blockLoc = startCorner.clone().add(offsetX, row, offsetZ);
+                Block block = blockLoc.getBlock();
                 block.setType(currentGrid[col][row], false);
             }
         }
@@ -120,13 +114,13 @@ public class SlotMachineTask extends BukkitRunnable {
         if (win) {
             double multiplier = getMultiplier(winningMat);
             double prize = betAmount * multiplier;
-            player.playSound(pos1, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-            spawnFirework(pos1.clone().add(0, 3, 0));
+            player.playSound(startCorner, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+            spawnFirework(startCorner.clone().add(1, 3, 0));
 
             player.sendMessage(Component.text("🎉 ВЫИГРЫШ! ", NamedTextColor.GREEN, TextDecoration.BOLD)
                     .append(Component.text("Вы собрали 3 в ряд и выиграли $" + prize, NamedTextColor.GOLD)));
         } else {
-            player.playSound(pos1, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+            player.playSound(startCorner, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             player.sendMessage(Component.text("Увы! Повезет в следующий раз.", NamedTextColor.RED));
         }
     }
