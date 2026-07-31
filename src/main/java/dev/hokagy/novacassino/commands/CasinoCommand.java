@@ -11,7 +11,6 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -70,7 +69,6 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                     }
 
                     String type = args[1].toUpperCase();
-                    CasinoStation station;
 
                     if (type.equals("SLOTS")) {
                         if (!plugin.getSelectionManager().hasSelection(player.getUniqueId())) {
@@ -82,26 +80,24 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                         Location pos2 = plugin.getSelectionManager().getPos2(player.getUniqueId());
                         Location displayStart = plugin.getSelectionManager().getMinCorner(player.getUniqueId());
 
-                        station = plugin.getCasinoManager().createStation(type, displayStart);
+                        CasinoStation station = plugin.getCasinoManager().createStation(type, displayStart);
                         station.setDisplayStart(pos1);
                         station.setDisplayEnd(pos2);
+                        station.updateHologram(Component.text("🎰 СЛОТ-АВТОМАТ 🎰", NamedTextColor.GOLD, TextDecoration.BOLD));
                         plugin.getCasinoManager().saveStations();
 
-                        spawnHologram(pos1.clone().add(0.5, 3.5, 0.5), "🎰 СЛОТ-АВТОМАТ 🎰");
                         player.sendMessage(Component.text("Игровой автомат #" + station.getId() + " (" + station.getType() + ") привязан к выделенной сетке!", NamedTextColor.GREEN));
 
                     } else if (type.equals("ROULETTE")) {
                         Location loc = player.getLocation();
-                        station = plugin.getCasinoManager().createStation(type, loc);
-                        station.setDisplayStart(loc);
-                        station.setDisplayEnd(loc);
+                        CasinoStation station = plugin.getCasinoManager().createStation(type, loc);
+                        station.spawnRouletteRing(); // Заспавнить круг из блоков/голов
+                        station.resetHologram();     // Заспавнить стандартную голограмму рулетки
                         plugin.getCasinoManager().saveStations();
 
-                        spawnHologram(loc.clone().add(0.5, 2.0, 0.5), "🎡 РУЛЕТКА 🎡");
                         player.sendMessage(Component.text("Станция казино #" + station.getId() + " (ROULETTE) создана!", NamedTextColor.GREEN));
-
                     } else {
-                        station = plugin.getCasinoManager().createStation(type, player.getLocation());
+                        CasinoStation station = plugin.getCasinoManager().createStation(type, player.getLocation());
                         plugin.getCasinoManager().saveStations();
                         player.sendMessage(Component.text("Станция казино #" + station.getId() + " (" + station.getType() + ") создана!", NamedTextColor.GREEN));
                     }
@@ -166,6 +162,7 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                     CasinoStation st = plugin.getCasinoManager().getStation(id);
                     if (st != null) {
                         st.setRadius(radius);
+                        st.spawnRouletteRing(); // Пересоздать круг при изменении радиуса
                         plugin.getCasinoManager().saveStations();
                         sender.sendMessage(Component.text("Радиус станции #" + id + " изменен на " + radius, NamedTextColor.GREEN));
                     } else {
@@ -183,16 +180,6 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("Ошибка при исполнении команды. Проверьте аргументы.", NamedTextColor.RED));
         }
         return true;
-    }
-
-    private void spawnHologram(Location loc, String text) {
-        if (loc == null || loc.getWorld() == null) return;
-        ArmorStand stand = loc.getWorld().spawn(loc, ArmorStand.class);
-        stand.setGravity(false);
-        stand.setCanPickupItems(false);
-        stand.setCustomNameVisible(true);
-        stand.customName(Component.text(text, NamedTextColor.GOLD, TextDecoration.BOLD));
-        stand.setVisible(false);
     }
 
     private void sendHelpMenu(CommandSender sender) {
