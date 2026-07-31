@@ -37,6 +37,7 @@ public class SlotInteractionListener implements Listener {
 
             CasinoStation matchedStation = null;
             for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
+                // Проверяем СТРОГО тип SLOTS
                 if ("SLOTS".equalsIgnoreCase(station.getType())) {
                     if (station.getCenterLocation() != null && station.getCenterLocation().getWorld().equals(clickedBlock.getWorld())
                             && station.getCenterLocation().distance(clickedBlock.getLocation()) <= 5.0) {
@@ -46,13 +47,16 @@ public class SlotInteractionListener implements Listener {
                 }
             }
 
+            // Если станция не найдена или это не SLOTS — выходим (чтобы не перехватывать рулетку)
             if (matchedStation == null || matchedStation.getDisplayStart() == null || matchedStation.getDisplayEnd() == null) {
                 return;
             }
 
+            // Отменяем стандартное действие, чтобы не открывались сторонние меню
+            event.setCancelled(true);
+
             if (spinningStations.contains(matchedStation.getId())) {
                 player.sendMessage(Component.text("Этот автомат уже крутится! Дождитесь окончания.", NamedTextColor.RED));
-                event.setCancelled(true);
                 return;
             }
 
