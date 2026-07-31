@@ -15,9 +15,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * Модель игровой станции (слоты / рулетка).
  * Исправления:
- *  - предотвращение утечек сущностей (очистка перед спавном)
- *  - установка setSmall(true) и setMarker(true) для корректного отображения и отсутствия хитбоксов
- *  - потокобезопасная коллекция для списков стоек
+ *  - Автоматический спавн всех сущностей (рулетка + голограмма)
+ *  - Предотвращение дублирования сущностей и наложения слоев
+ *  - Установка setSmall(true) и setMarker(true)
+ *  - Потокобезопасная коллекция для списков стоек
  */
 public class CasinoStation {
 
@@ -30,7 +31,6 @@ public class CasinoStation {
     private Location displayStart;
     private Location displayEnd;
 
-    // CopyOnWriteArrayList безопаснее при одновременной итерации/изменении из разных точек кода
     private final List<ArmorStand> rouletteStands = new CopyOnWriteArrayList<>();
     private ArmorStand hologramStand;
 
@@ -65,11 +65,21 @@ public class CasinoStation {
     }
 
     /**
+     * Полный спавн всех элементов станции в мире.
+     * Запускается при старте сервера / создании / перезагрузке.
+     */
+    public void spawnAllEntities() {
+        remove(); // Предварительно очищаем старые сущности, чтобы не было дублирования
+        if ("ROULETTE".equalsIgnoreCase(type)) {
+            spawnRouletteRing();
+        }
+        resetHologram();
+    }
+
+    /**
      * Создаёт круг маленьких ArmorStand с "блоками" на голове.
-     * Перед спавном всегда удаляются старые стойки, чтобы избежать дублирования сущностей.
      */
     public void spawnRouletteRing() {
-        // Удаляем предыдущие стойки (если они есть)
         removeRouletteRing();
 
         if (!"ROULETTE".equalsIgnoreCase(type) || centerLocation == null || centerLocation.getWorld() == null) {
@@ -79,7 +89,6 @@ public class CasinoStation {
         int totalSlots = plugin.getConfig().getInt("roulette.total-slots", 37);
         double yOffset = plugin.getConfig().getDouble("roulette.y-offset", -0.7);
 
-        // Безопасный парсинг материалов (на случай опечатки в конфиге)
         Material zeroMat = safeMaterial(plugin.getConfig().getString("roulette.blocks.zero", "EMERALD_BLOCK"), Material.EMERALD_BLOCK);
         Material evenMat = safeMaterial(plugin.getConfig().getString("roulette.blocks.even", "BLACK_CONCRETE"), Material.BLACK_CONCRETE);
         Material oddMat = safeMaterial(plugin.getConfig().getString("roulette.blocks.odd", "RED_CONCRETE"), Material.RED_CONCRETE);
@@ -92,14 +101,12 @@ public class CasinoStation {
 
                 Location loc = new Location(centerLocation.getWorld(), x, centerLocation.getY() + yOffset, z);
 
-                // Спавним ArmorStand (предполагается, что вызов в основном потоке)
                 ArmorStand stand = centerLocation.getWorld().spawn(loc, ArmorStand.class);
-                // Настройки для визуализации "блока" на голове и отсутствия хитбокса
                 stand.setGravity(false);
                 stand.setCanPickupItems(false);
                 stand.setVisible(false);
-                stand.setSmall(true);    // компактная стойка — блок не парит
-                stand.setMarker(true);   // убирает хитбокс, не мешает кликам
+                stand.setSmall(true);    // опускаем блок
+                stand.setMarker(true);   // убираем хитбокс
                 stand.setInvulnerable(true);
 
                 Material headMaterial = (i == 0) ? zeroMat : (i % 2 == 0 ? evenMat : oddMat);
@@ -109,17 +116,15 @@ public class CasinoStation {
 
                 rouletteStands.add(stand);
             } catch (Exception ex) {
-                // Логируем, но не ломаем цикл — продолжаем создавать остальные слоты
                 plugin.getLogger().warning("Ошибка при спавне стойки рулетки: " + ex.getMessage());
             }
         }
     }
 
     /**
-     * Безопасное удаление всех стоек (и очистка коллекции).
+     * Безопасное удаление всех стоек кольца рулетки.
      */
     public void removeRouletteRing() {
-        // Работать по копии, т.к. список — CopyOnWrite, но на всякий случай
         for (ArmorStand stand : new ArrayList<>(rouletteStands)) {
             try {
                 if (stand != null && stand.isValid()) {
@@ -131,7 +136,7 @@ public class CasinoStation {
     }
 
     /**
-     * Обновляет текст голограммы (если не существует — создаёт).
+     * Обновляет текст голограммы.
      */
     public void updateHologram(Component text) {
         if (hologramStand == null || !hologramStand.isValid()) {
@@ -173,7 +178,7 @@ public class CasinoStation {
     }
 
     /**
-     * Создаёт голограмму (ArmorStand с кастомным именем). Устанавливает marker и small.
+     * Создаёт голограмму (ArmorStand с кастомным именем).
      */
     private void spawnHologram(Component text) {
         if (centerLocation == null || centerLocation.getWorld() == null) return;
@@ -182,7 +187,6 @@ public class CasinoStation {
         Location holoLoc = centerLocation.clone().add(0, holoY, 0);
 
         try {
-            // Если голограмма уже есть — удаляем и создаём заново (более предсказуемое поведение)
             if (hologramStand != null && hologramStand.isValid()) {
                 hologramStand.remove();
             }
