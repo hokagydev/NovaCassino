@@ -11,7 +11,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class CasinoManager {
@@ -62,22 +64,27 @@ public class CasinoManager {
                 World world = Bukkit.getWorld(worldName);
                 if (world != null) {
                     Location loc = new Location(world, x, y, z);
-                    
-                    // Конструктор CasinoStation внутри себя зачистит дубликаты и заспавнит 1 рулетку
-                    CasinoStation station = new CasinoStation(id, type, loc, radius);
+
+                    // Конструктор CasinoStation теперь получает plugin как параметр
+                    CasinoStation station = new CasinoStation(plugin, id, type, loc, radius);
                     stations.put(id, station);
                 }
             } catch (Exception e) {
-                plugin.getLogger().warning("Ошибка загрузки станции ID: " + key);
+                plugin.getLogger().warning("Ошибка загрузки станции ID: " + key + " - " + e.getMessage());
             }
         }
     }
 
     public void saveStations() {
+        if (stationsConfig == null) {
+            initStationsConfig();
+        }
+
         stationsConfig.set("stations", null);
 
         for (CasinoStation station : stations.values()) {
             String path = "stations." + station.getId();
+            if (station.getCenterLocation() == null || station.getCenterLocation().getWorld() == null) continue;
             stationsConfig.set(path + ".type", station.getType());
             stationsConfig.set(path + ".world", station.getCenterLocation().getWorld().getName());
             stationsConfig.set(path + ".x", station.getCenterLocation().getX());
@@ -89,14 +96,14 @@ public class CasinoManager {
         try {
             stationsConfig.save(stationsFile);
         } catch (IOException e) {
-            plugin.getLogger().severe("Не удалось сохранить stations.yml!");
+            plugin.getLogger().severe("Не удалось сохранить stations.yml! " + e.getMessage());
         }
     }
 
     public CasinoStation createStation(String type, Location loc) {
         int id = generateUniqueId();
         double radius = plugin.getConfig().getDouble("station.radius", 3.5);
-        CasinoStation station = new CasinoStation(id, type, loc, radius);
+        CasinoStation station = new CasinoStation(plugin, id, type, loc, radius);
         stations.put(id, station);
         saveStations();
         return station;
@@ -105,7 +112,7 @@ public class CasinoManager {
     public boolean deleteStation(int id) {
         if (stations.containsKey(id)) {
             CasinoStation station = stations.remove(id);
-            station.remove();
+            if (station != null) station.remove();
             saveStations();
             return true;
         }
@@ -113,8 +120,12 @@ public class CasinoManager {
     }
 
     public void removeAllEntities() {
-        for (CasinoStation station : stations.values()) {
-            station.remove();
+        // Работать с копией, чтобы избежать ConcurrentModificationException
+        List<CasinoStation> copy = new ArrayList<>(stations.values());
+        for (CasinoStation station : copy) {
+            try {
+                if (station != null) station.remove();
+            } catch (Exception ignored) {}
         }
     }
 
