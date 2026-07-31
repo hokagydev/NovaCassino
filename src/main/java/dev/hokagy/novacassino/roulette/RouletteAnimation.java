@@ -33,6 +33,7 @@ public class RouletteAnimation {
     }
 
     public void start() {
+        // Проверяем и гарантируем наличие кольца блоков
         List<ArmorStand> stands = station.getRouletteStands();
         if (stands.isEmpty()) {
             station.spawnRouletteRing();
@@ -40,12 +41,16 @@ public class RouletteAnimation {
         }
 
         final List<ArmorStand> activeStands = new ArrayList<>(stands);
-        if (activeStands.isEmpty()) return;
+        if (activeStands.isEmpty()) {
+            // Если спавн не удался, принудительно восстанавливаем станцию
+            station.spawnAllEntities();
+            return;
+        }
 
         final int targetIndex = ThreadLocalRandom.current().nextInt(activeStands.size());
         final int totalTicks = 80 + targetIndex;
 
-        // Обновляем голограмму при старте вращения (hologram.solo_active)
+        // Обновляем голограмму при старте
         updateHologramFromConfig("hologram.solo_active", betAmount, 0.0);
 
         new BukkitRunnable() {
@@ -58,7 +63,7 @@ public class RouletteAnimation {
             public void run() {
                 if (activeStands.isEmpty()) {
                     cancel();
-                    station.resetHologram();
+                    resetStationState();
                     return;
                 }
 
@@ -101,10 +106,11 @@ public class RouletteAnimation {
                     try {
                         winning = activeStands.get(Math.min(targetIndex, activeStands.size() - 1));
                     } catch (Exception ignored) {}
+                    
                     if (winning != null && winning.isValid()) {
                         finish(winning);
                     } else {
-                        station.resetHologram();
+                        resetStationState();
                     }
                 }
             }
@@ -113,7 +119,7 @@ public class RouletteAnimation {
 
     private void finish(ArmorStand winningStand) {
         if (winningStand == null || !winningStand.isValid()) {
-            station.resetHologram();
+            resetStationState();
             return;
         }
 
@@ -138,11 +144,9 @@ public class RouletteAnimation {
 
             if (player.isOnline()) {
                 if (multiplier >= 10.0) {
-                    // Сообщение и голограмма для ДЖЕКПОТА
                     sendMessageFromConfig("solo_jackpot", payout, multiplier);
                     updateHologramFromConfig("hologram.solo_jackpot", payout, multiplier);
                 } else {
-                    // Сообщение и голограмма для ОБЫЧНОГО ВЫИГРЫША
                     sendMessageFromConfig("solo_win", payout, multiplier);
                     updateHologramFromConfig("hologram.solo_win", payout, multiplier);
                 }
@@ -152,24 +156,31 @@ public class RouletteAnimation {
                 loc.getWorld().playSound(loc, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             }
             if (player.isOnline()) {
-                // Сообщение и голограмма для ПРОИГРЫША
                 sendMessageFromConfig("solo_loss", betAmount, multiplier);
             }
             updateHologramFromConfig("hologram.solo_loss", betAmount, multiplier);
         }
 
-        // Возвращаем дефолтную голограмму через 5 секунд (100 тиков)
+        // Через 5 секунд сбрасываем голограмму И принудительно проверяем/восстанавливаем кольцо шариков
         new BukkitRunnable() {
             @Override
             public void run() {
-                station.resetHologram();
+                resetStationState();
             }
         }.runTaskLater(plugin, 100L);
     }
 
     /**
-     * Форматирует и отправляет сообщение игроку из messages.yml с поддержкой MiniMessage и Legacy & кодов.
+     * Восстанавливает голограмму и гарантирует наличие всех стоек с блоками в кольце.
      */
+    private void resetStationState() {
+        station.resetHologram();
+        // Если какие-то стойки кольца пропали — спавним заново
+        if (station.getRouletteStands().isEmpty() || station.getRouletteStands().stream().anyMatch(s -> s == null || !s.isValid())) {
+            station.spawnRouletteRing();
+        }
+    }
+
     private void sendMessageFromConfig(String path, double amount, double multiplier) {
         FileConfiguration msgConfig = plugin.getMessagesConfig();
         String rawMsg = msgConfig.getString(path, "");
@@ -179,16 +190,11 @@ public class RouletteAnimation {
         String fullMsg = prefix + rawMsg;
 
         fullMsg = replacePlaceholders(fullMsg, amount, multiplier);
-
-        // Конвертируем legacy-цвета & в стандартные теги MiniMessage
         fullMsg = convertLegacyToMiniMessage(fullMsg);
 
         player.sendMessage(miniMessage.deserialize(fullMsg));
     }
 
-    /**
-     * Обновляет голограмму над станцией из messages.yml (с поддержкой переносов строк \n).
-     */
     private void updateHologramFromConfig(String path, double amount, double multiplier) {
         FileConfiguration msgConfig = plugin.getMessagesConfig();
         String rawHolo = msgConfig.getString(path, "");
@@ -197,8 +203,7 @@ public class RouletteAnimation {
         rawHolo = replacePlaceholders(rawHolo, amount, multiplier);
         rawHolo = convertLegacyToMiniMessage(rawHolo);
 
-        // В случае многострочного текста спарсенный компонент передаем в станцию
-        Component component = miniMessage.deserialize(rawHolo);
+        Component component = miniMessage.deserialize(rawHolo.replace("\\n", "\n"));
         station.updateHologram(component);
     }
 
