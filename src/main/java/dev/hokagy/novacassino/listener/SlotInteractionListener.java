@@ -1,7 +1,7 @@
 package dev.hokagy.novacassino.listener;
 
 import dev.hokagy.novacassino.NovaCassino;
-import dev.hokagy.novacassino.machine.SlotMachineTask;
+import dev.hokagy.novacassino.machine.SlotsAnimation;
 import dev.hokagy.novacassino.model.CasinoStation;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -60,10 +60,10 @@ public class SlotInteractionListener implements Listener {
                 return;
             }
 
-            spinningStations.add(matchedStation.getId());
+            double betAmount = plugin.getConfig().getDouble("slots.default_bet", 100.0);
 
-            new SlotMachineTask(plugin, player, matchedStation.getDisplayStart(), matchedStation.getDisplayEnd(), matchedStation.getId(), 100.0)
-                    .runTaskTimer(plugin, 0L, 2L);
+            SlotsAnimation animation = new SlotsAnimation(plugin, player, matchedStation.getDisplayStart(), matchedStation.getDisplayEnd(), matchedStation.getId(), betAmount);
+            animation.start();
         }
     }
 }
