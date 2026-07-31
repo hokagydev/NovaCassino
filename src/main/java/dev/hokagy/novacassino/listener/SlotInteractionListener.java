@@ -50,18 +50,15 @@ public class SlotInteractionListener implements Listener {
                 return;
             }
 
-            // Проверка: крутится ли уже слот-машина
             if (spinningStations.contains(matchedStation.getId())) {
                 player.sendMessage(Component.text("Этот автомат уже крутится! Дождитесь окончания.", NamedTextColor.RED));
                 event.setCancelled(true);
                 return;
             }
 
-            // Фиксируем запуск
             spinningStations.add(matchedStation.getId());
 
-            // Передаем точки pos1 и pos2 из SelectionManager или центра
-            new SlotMachineTask(plugin, player, matchedStation.getDisplayStart(), matchedStation.getCenterLocation(), matchedStation.getId(), 100.0)
+            new SlotMachineTask(plugin, player, matchedStation.getDisplayStart(), matchedStation.getId(), 100.0)
                     .runTaskTimer(plugin, 0L, 2L);
         }
     }
