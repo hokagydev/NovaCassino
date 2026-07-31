@@ -42,7 +42,7 @@ public class CasinoManager {
     }
 
     public void loadStations() {
-        // Очищаем старые энтити из памяти и из мира
+        // Удаляем старые физические энтити из мира перед полной перезагрузкой
         removeAllEntities();
         stations.clear();
 
@@ -65,8 +65,11 @@ public class CasinoManager {
                 if (world != null) {
                     Location loc = new Location(world, x, y, z);
 
-                    // Конструктор CasinoStation теперь получает plugin как параметр
                     CasinoStation station = new CasinoStation(plugin, id, type, loc, radius);
+                    
+                    // Загружаем и спавним сущности в мире (рулетка + голограмма)
+                    station.spawnAllEntities();
+
                     stations.put(id, station);
                 }
             } catch (Exception e) {
@@ -104,6 +107,10 @@ public class CasinoManager {
         int id = generateUniqueId();
         double radius = plugin.getConfig().getDouble("station.radius", 3.5);
         CasinoStation station = new CasinoStation(plugin, id, type, loc, radius);
+        
+        // Спавним сущности при создании новой станции
+        station.spawnAllEntities();
+
         stations.put(id, station);
         saveStations();
         return station;
@@ -120,7 +127,6 @@ public class CasinoManager {
     }
 
     public void removeAllEntities() {
-        // Работать с копией, чтобы избежать ConcurrentModificationException
         List<CasinoStation> copy = new ArrayList<>(stations.values());
         for (CasinoStation station : copy) {
             try {
