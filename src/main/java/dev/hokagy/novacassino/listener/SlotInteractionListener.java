@@ -14,6 +14,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
@@ -30,68 +31,77 @@ public class SlotInteractionListener implements Listener {
     }
 
     /**
-     * Блокировка кликов ПКМ по ArmorStand'ам и стойкам около автоматов SLOTS.
+     * Блокировка ПКМ по стойкам / ArmorStand вокруг слотов.
+     * Приоритет HIGHEST гарантирует, что мы перехватим клик до вызова GUI.
      */
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onEntityInteract(PlayerInteractAtEntityEvent event) {
-        Entity clicked = event.getRightClicked();
-        if (!(clicked instanceof ArmorStand)) return;
+        if (isNearSlots(event.getRightClicked())) {
+            event.setCancelled(true);
+        }
+    }
 
-        for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
-            if ("SLOTS".equalsIgnoreCase(station.getType())) {
-                Location loc = station.getCenterLocation();
-                if (loc != null && loc.getWorld() != null && loc.getWorld().equals(clicked.getWorld()) 
-                        && loc.distance(clicked.getLocation()) <= 5.0) {
-                    // Полностью блокируем клик, чтобы не вызывались никакие GUI
-                    event.setCancelled(true);
-                    return;
-                }
-            }
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onEntityInteractGeneral(PlayerInteractEntityEvent event) {
+        if (isNearSlots(event.getRightClicked())) {
+            event.setCancelled(true);
         }
     }
 
     /**
-     * Перехват кликов по блокам вокруг автомата SLOTS.
+     * Перехват кликов ПКМ по всем блокам около SLOTS.
      */
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onLeverPull(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        if (event.getHand() != EquipmentSlot.HAND) return;
-
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.RIGHT_CLICK_AIR) return;
+        
         Block clickedBlock = event.getClickedBlock();
-        if (clickedBlock == null) return;
+        Player player = event.getPlayer();
+        Location checkLoc = (clickedBlock != null) ? clickedBlock.getLocation() : player.getLocation();
 
-        CasinoStation matchedStation = null;
+        CasinoStation matchedStation = findSlotsStation(checkLoc);
 
-        for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
-            if ("SLOTS".equalsIgnoreCase(station.getType())) {
-                Location loc = station.getCenterLocation();
-                if (loc != null && loc.getWorld() != null && loc.getWorld().equals(clickedBlock.getWorld())
-                        && loc.distance(clickedBlock.getLocation()) <= 5.0) {
-                    matchedStation = station;
-                    break;
-                }
-            }
-        }
-
-        // Если клик произошел около автомата SLOTS
         if (matchedStation != null) {
-            // ВСЕГДА отменяем стандартный клик и открытие чужих GUI вокруг слотов!
+            // ЖЁСТКАЯ БЛОКИРОВКА: Глушим ВСЕ клики ПКМ в радиусе слотов, 
+            // чтобы никакие внешние слушатели не открывали GUI рулетки!
             event.setCancelled(true);
 
-            // Реакция на старт работы автомата только при клике по рычагу или кнопке
+            if (event.getHand() != EquipmentSlot.HAND) return;
+            if (clickedBlock == null) return;
+
+            // Запускаем автомат ТОЛЬКО если кликнули по рычагу или кнопке
             if (clickedBlock.getType() == Material.LEVER || clickedBlock.getType().name().endsWith("_BUTTON")) {
                 if (spinningStations.contains(matchedStation.getId())) {
                     return;
                 }
 
                 if (matchedStation.getDisplayStart() != null && matchedStation.getDisplayEnd() != null) {
-                    Player player = event.getPlayer();
                     double betAmount = plugin.getConfig().getDouble("slots.default_bet", 100.0);
                     SlotsAnimation animation = new SlotsAnimation(plugin, player, matchedStation.getDisplayStart(), matchedStation.getDisplayEnd(), matchedStation.getId(), betAmount);
                     animation.start();
                 }
             }
         }
+    }
+
+    private boolean isNearSlots(Entity entity) {
+        if (entity == null) return false;
+        return findSlotsStation(entity.getLocation()) != null;
+    }
+
+    private CasinoStation findSlotsStation(Location loc) {
+        if (loc == null || loc.getWorld() == null) return null;
+
+        for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
+            if ("SLOTS".equalsIgnoreCase(station.getType())) {
+                Location center = station.getCenterLocation();
+                if (center != null && center.getWorld() != null && center.getWorld().equals(loc.getWorld())) {
+                    if (center.distance(loc) <= 5.0) {
+                        return station;
+                    }
+                }
+            }
+        }
+        return null;
     }
 }
