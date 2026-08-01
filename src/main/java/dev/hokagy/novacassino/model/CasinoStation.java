@@ -14,11 +14,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Модель игровой станции (слоты / рулетка).
- * Исправления:
- *  - Автоматический спавн всех сущностей (рулетка + голограмма)
- *  - Предотвращение дублирования сущностей и наложения слоев
- *  - Установка setSmall(true) и setMarker(true)
- *  - Потокобезопасная коллекция для списков стоек
  */
 public class CasinoStation {
 
@@ -30,6 +25,7 @@ public class CasinoStation {
 
     private Location displayStart;
     private Location displayEnd;
+    private Location hologramLocation;
 
     private final List<ArmorStand> rouletteStands = new CopyOnWriteArrayList<>();
     private ArmorStand hologramStand;
@@ -55,10 +51,15 @@ public class CasinoStation {
     public Location getCenterLocation() { return centerLocation; }
     public double getRadius() { return radius; }
     public void setRadius(double radius) { this.radius = radius; }
+    
     public Location getDisplayStart() { return displayStart; }
     public void setDisplayStart(Location displayStart) { this.displayStart = displayStart; }
+    
     public Location getDisplayEnd() { return displayEnd; }
     public void setDisplayEnd(Location displayEnd) { this.displayEnd = displayEnd; }
+
+    public Location getHologramLocation() { return hologramLocation; }
+    public void setHologramLocation(Location hologramLocation) { this.hologramLocation = hologramLocation; }
 
     public List<ArmorStand> getRouletteStands() {
         return rouletteStands;
@@ -183,14 +184,19 @@ public class CasinoStation {
     private void spawnHologram(Component text) {
         if (centerLocation == null || centerLocation.getWorld() == null) return;
 
-        double holoY = plugin.getConfig().getDouble("hologram.height-offset", 1.2);
-        Location holoLoc = centerLocation.clone().add(0, holoY, 0);
+        Location holoLoc;
+        if (hologramLocation != null && hologramLocation.getWorld() != null) {
+            holoLoc = hologramLocation.clone();
+        } else {
+            double holoY = plugin.getConfig().getDouble("hologram.height-offset", 1.2);
+            holoLoc = centerLocation.clone().add(0, holoY, 0);
+        }
 
         try {
             if (hologramStand != null && hologramStand.isValid()) {
                 hologramStand.remove();
             }
-            hologramStand = centerLocation.getWorld().spawn(holoLoc, ArmorStand.class);
+            hologramStand = holoLoc.getWorld().spawn(holoLoc, ArmorStand.class);
             hologramStand.setGravity(false);
             hologramStand.setCanPickupItems(false);
             hologramStand.setCustomNameVisible(true);
