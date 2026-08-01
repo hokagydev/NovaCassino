@@ -1,5 +1,6 @@
 package dev.hokagy.novacassino;
 
+import dev.hokagy.novacassino.command.BetCommand;
 import dev.hokagy.novacassino.command.CasinoCommand;
 import dev.hokagy.novacassino.hook.VaultHook;
 import dev.hokagy.novacassino.listener.CasinoListener;
@@ -49,6 +50,10 @@ public final class NovaCassino extends JavaPlugin {
             CasinoCommand commandExecutor = new CasinoCommand(this);
             getCommand("procasino").setExecutor(commandExecutor);
             getCommand("procasino").setTabCompleter(commandExecutor);
+        }
+
+        if (getCommand("bet") != null) {
+            getCommand("bet").setExecutor(new BetCommand(this));
         }
 
         getLogger().info("NovaCassino успешно включен!");
