@@ -30,18 +30,19 @@ public class SlotInteractionListener implements Listener {
     }
 
     /**
-     * Блокировка кликов ПКМ по ArmorStand'ам (стойкам, голограммам слотов), 
-     * чтобы не срабатывали сторонние действия вокруг автомата SLOTS.
+     * Блокировка кликов ПКМ по ArmorStand'ам и стойкам около автоматов SLOTS.
      */
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onEntityInteract(PlayerInteractAtEntityEvent event) {
         Entity clicked = event.getRightClicked();
         if (!(clicked instanceof ArmorStand)) return;
 
         for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
-            Location loc = station.getCenterLocation();
-            if (loc != null && loc.getWorld().equals(clicked.getWorld()) && loc.distance(clicked.getLocation()) <= 4.0) {
-                if ("SLOTS".equalsIgnoreCase(station.getType())) {
+            if ("SLOTS".equalsIgnoreCase(station.getType())) {
+                Location loc = station.getCenterLocation();
+                if (loc != null && loc.getWorld() != null && loc.getWorld().equals(clicked.getWorld()) 
+                        && loc.distance(clicked.getLocation()) <= 5.0) {
+                    // Полностью блокируем клик, чтобы не вызывались никакие GUI
                     event.setCancelled(true);
                     return;
                 }
@@ -50,10 +51,9 @@ public class SlotInteractionListener implements Listener {
     }
 
     /**
-     * Запуск автомата SLOTS по нажатию на рычаг или кнопку.
-     * Абсолютно блокирует любые открытия меню.
+     * Перехват кликов по блокам вокруг автомата SLOTS.
      */
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onLeverPull(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getHand() != EquipmentSlot.HAND) return;
@@ -61,13 +61,12 @@ public class SlotInteractionListener implements Listener {
         Block clickedBlock = event.getClickedBlock();
         if (clickedBlock == null) return;
 
-        Player player = event.getPlayer();
-
         CasinoStation matchedStation = null;
+
         for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
             if ("SLOTS".equalsIgnoreCase(station.getType())) {
                 Location loc = station.getCenterLocation();
-                if (loc != null && loc.getWorld().equals(clickedBlock.getWorld())
+                if (loc != null && loc.getWorld() != null && loc.getWorld().equals(clickedBlock.getWorld())
                         && loc.distance(clickedBlock.getLocation()) <= 5.0) {
                     matchedStation = station;
                     break;
@@ -75,21 +74,23 @@ public class SlotInteractionListener implements Listener {
             }
         }
 
-        if (matchedStation == null) return;
+        // Если клик произошел около автомата SLOTS
+        if (matchedStation != null) {
+            // ВСЕГДА отменяем стандартный клик и открытие чужих GUI вокруг слотов!
+            event.setCancelled(true);
 
-        // Отменяем стандартное взаимодействие и открывание GUI
-        event.setCancelled(true);
+            // Реакция на старт работы автомата только при клике по рычагу или кнопке
+            if (clickedBlock.getType() == Material.LEVER || clickedBlock.getType().name().endsWith("_BUTTON")) {
+                if (spinningStations.contains(matchedStation.getId())) {
+                    return;
+                }
 
-        // Реагируем только на нажатие рычага или кнопки
-        if (clickedBlock.getType() == Material.LEVER || clickedBlock.getType().name().endsWith("_BUTTON")) {
-            if (spinningStations.contains(matchedStation.getId())) {
-                return;
-            }
-
-            if (matchedStation.getDisplayStart() != null && matchedStation.getDisplayEnd() != null) {
-                double betAmount = plugin.getConfig().getDouble("slots.default_bet", 100.0);
-                SlotsAnimation animation = new SlotsAnimation(plugin, player, matchedStation.getDisplayStart(), matchedStation.getDisplayEnd(), matchedStation.getId(), betAmount);
-                animation.start();
+                if (matchedStation.getDisplayStart() != null && matchedStation.getDisplayEnd() != null) {
+                    Player player = event.getPlayer();
+                    double betAmount = plugin.getConfig().getDouble("slots.default_bet", 100.0);
+                    SlotsAnimation animation = new SlotsAnimation(plugin, player, matchedStation.getDisplayStart(), matchedStation.getDisplayEnd(), matchedStation.getId(), betAmount);
+                    animation.start();
+                }
             }
         }
     }
