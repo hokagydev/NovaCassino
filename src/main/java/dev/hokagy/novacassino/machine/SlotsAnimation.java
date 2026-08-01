@@ -53,6 +53,8 @@ public class SlotsAnimation extends BukkitRunnable {
     }
 
     public void start() {
+        if (!player.isOnline()) return;
+
         // Проверяем баланс и списываем деньги перед стартом
         if (VaultHook.hasEconomy()) {
             if (VaultHook.getEconomy().getBalance(player) < betAmount) {
@@ -69,6 +71,12 @@ public class SlotsAnimation extends BukkitRunnable {
 
     @Override
     public void run() {
+        if (!player.isOnline()) {
+            cancel();
+            SlotInteractionListener.spinningStations.remove(stationId);
+            return;
+        }
+
         ticks++;
 
         for (int col = 0; col < 3; col++) {
@@ -80,7 +88,8 @@ public class SlotsAnimation extends BukkitRunnable {
         }
 
         renderGrid();
-        if (pos1.getWorld() != null) {
+
+        if (pos1 != null && pos1.getWorld() != null) {
             player.playSound(pos1, Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.4f);
         }
 
@@ -144,14 +153,14 @@ public class SlotsAnimation extends BukkitRunnable {
                 VaultHook.getEconomy().depositPlayer(player, prize);
             }
 
-            if (pos1.getWorld() != null) {
+            if (pos1 != null && pos1.getWorld() != null) {
                 player.playSound(pos1, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+                spawnFirework(pos1.clone().add(0, 3, 0));
             }
-            spawnFirework(pos1.clone().add(0, 3, 0));
 
             sendMessageFromConfig("solo_win", prize, multiplier);
         } else {
-            if (pos1.getWorld() != null) {
+            if (pos1 != null && pos1.getWorld() != null) {
                 player.playSound(pos1, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             }
             sendMessageFromConfig("solo_loss", betAmount, 0.0);
