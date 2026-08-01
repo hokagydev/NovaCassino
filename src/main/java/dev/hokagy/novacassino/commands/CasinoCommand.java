@@ -83,7 +83,7 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                         CasinoStation station = plugin.getCasinoManager().createStation(type, displayStart);
                         station.setDisplayStart(pos1);
                         station.setDisplayEnd(pos2);
-                        station.updateHologram(Component.text("🎰 СЛОТ-АВТОМАТ 🎰", NamedTextColor.GOLD, TextDecoration.BOLD));
+                        station.resetHologram();
                         plugin.getCasinoManager().saveStations();
 
                         player.sendMessage(Component.text("Игровой автомат #" + station.getId() + " (" + station.getType() + ") привязан к выделенной сетке!", NamedTextColor.GREEN));
@@ -139,10 +139,10 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                         return true;
                     }
                     int id = Integer.parseInt(args[1]);
-                    boolean success = plugin.getCasinoManager().teleportStation(id, player.getLocation());
+                    boolean success = plugin.getCasinoManager().moveHologram(id, player.getLocation());
 
                     if (success) {
-                        player.sendMessage(Component.text("Голограмма и станция #" + id + " перемещены к вам!", NamedTextColor.GREEN));
+                        player.sendMessage(Component.text("Голограмма станции #" + id + " успешно перемещена к вам!", NamedTextColor.GREEN));
                     } else {
                         player.sendMessage(Component.text("Станция #" + id + " не найдена!", NamedTextColor.RED));
                     }
