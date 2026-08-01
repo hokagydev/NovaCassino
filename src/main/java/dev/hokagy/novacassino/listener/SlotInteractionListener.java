@@ -1,107 +1,123 @@
 package dev.hokagy.novacassino.listener;
 
 import dev.hokagy.novacassino.NovaCassino;
-import dev.hokagy.novacassino.machine.SlotsAnimation;
+import dev.hokagy.novacassino.command.BetCommand;
+import dev.hokagy.novacassino.hook.VaultHook;
 import dev.hokagy.novacassino.model.CasinoStation;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.block.Block;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractAtEntityEvent;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SlotInteractionListener implements Listener {
 
-    public static final Set<Integer> spinningStations = new HashSet<>();
     private final NovaCassino plugin;
+    private final MiniMessage miniMessage = MiniMessage.miniMessage();
+
+    // Защита от частых кликов / повторных запусков на станциях
+    private final Map<Integer, Boolean> runningSlots = new HashMap<>();
 
     public SlotInteractionListener(NovaCassino plugin) {
         this.plugin = plugin;
     }
 
-    /**
-     * Блокировка ПКМ по стойкам / ArmorStand вокруг слотов.
-     * Приоритет HIGHEST гарантирует, что мы перехватим клик до вызова GUI.
-     */
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-    public void onEntityInteract(PlayerInteractAtEntityEvent event) {
-        if (isNearSlots(event.getRightClicked())) {
-            event.setCancelled(true);
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
         }
-    }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-    public void onEntityInteractGeneral(PlayerInteractEntityEvent event) {
-        if (isNearSlots(event.getRightClicked())) {
-            event.setCancelled(true);
-        }
-    }
-
-    /**
-     * Перехват кликов ПКМ по всем блокам около SLOTS.
-     */
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-    public void onLeverPull(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.RIGHT_CLICK_AIR) return;
-        
         Block clickedBlock = event.getClickedBlock();
+        if (clickedBlock == null) return;
+
         Player player = event.getPlayer();
-        Location checkLoc = (clickedBlock != null) ? clickedBlock.getLocation() : player.getLocation();
 
-        CasinoStation matchedStation = findSlotsStation(checkLoc);
+        for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
+            // Работаем только со станциями типа SLOTS
+            if (!"SLOTS".equalsIgnoreCase(station.getType())) {
+                continue;
+            }
 
-        if (matchedStation != null) {
-            // ЖЁСТКАЯ БЛОКИРОВКА: Глушим ВСЕ клики ПКМ в радиусе слотов, 
-            // чтобы никакие внешние слушатели не открывали GUI рулетки!
-            event.setCancelled(true);
+            if (isBlockInStationArea(clickedBlock.getLocation(), station)) {
+                event.setCancelled(true);
 
-            if (event.getHand() != EquipmentSlot.HAND) return;
-            if (clickedBlock == null) return;
-
-            // Запускаем автомат ТОЛЬКО если кликнули по рычагу или кнопке
-            if (clickedBlock.getType() == Material.LEVER || clickedBlock.getType().name().endsWith("_BUTTON")) {
-                if (spinningStations.contains(matchedStation.getId())) {
+                if (runningSlots.getOrDefault(station.getId(), false)) {
+                    player.sendMessage(miniMessage.deserialize("<red>Этот автомат уже крутится! Подождите завершения.</red>"));
+                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                     return;
                 }
 
-                if (matchedStation.getDisplayStart() != null && matchedStation.getDisplayEnd() != null) {
-                    double betAmount = plugin.getConfig().getDouble("slots.default_bet", 100.0);
-                    SlotsAnimation animation = new SlotsAnimation(plugin, player, matchedStation.getDisplayStart(), matchedStation.getDisplayEnd(), matchedStation.getId(), betAmount);
-                    animation.start();
+                // 1. Проверяем, введена ли ставка командой /bet
+                if (!BetCommand.hasBet(player.getUniqueId())) {
+                    player.sendMessage(miniMessage.deserialize("<red>❌ Сначала укажите сумму ставки командой: <yellow>/bet <сумма></yellow></red>"));
+                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
                 }
-            }
-        }
-    }
 
-    private boolean isNearSlots(Entity entity) {
-        if (entity == null) return false;
-        return findSlotsStation(entity.getLocation()) != null;
-    }
+                double betAmount = BetCommand.getBet(player.getUniqueId());
 
-    private CasinoStation findSlotsStation(Location loc) {
-        if (loc == null || loc.getWorld() == null) return null;
-
-        for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
-            if ("SLOTS".equalsIgnoreCase(station.getType())) {
-                Location center = station.getCenterLocation();
-                if (center != null && center.getWorld() != null && center.getWorld().equals(loc.getWorld())) {
-                    if (center.distance(loc) <= 5.0) {
-                        return station;
+                // 2. Проверяем баланс игрока через Vault
+                if (VaultHook.hasEconomy()) {
+                    if (VaultHook.getEconomy().getBalance(player) < betAmount) {
+                        player.sendMessage(miniMessage.deserialize("<red>У вас недостаточно средств! Требуется: <gold>" + betAmount + "</gold> монет.</red>"));
+                        player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                        return;
                     }
+
+                    // Снимаем деньги со счета игрока
+                    VaultHook.getEconomy().withdrawPlayer(player, betAmount);
                 }
+
+                // 3. Запуск спина автомата
+                player.sendMessage(miniMessage.deserialize("<green>🎰 Ставка <gold>" + betAmount + "</gold> монет принята! Запуск автомата...</green>"));
+                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
+
+                // Очищаем ставку игрока после использования
+                BetCommand.clearBet(player.getUniqueId());
+
+                // Блокируем автомат на время работы
+                runningSlots.put(station.getId(), true);
+
+                // TODO: Вызов твоей анимации прокрутки барабанов/экрана слотов!
+                // Пример сброса блокировки:
+                // resetSlotStatusLater(station.getId(), 80L);
+
+                break;
             }
         }
-        return null;
+    }
+
+    private boolean isBlockInStationArea(Location loc, CasinoStation station) {
+        Location start = station.getDisplayStart();
+        Location end = station.getDisplayEnd();
+
+        if (start != null && end != null && start.getWorld().equals(loc.getWorld())) {
+            int minX = Math.min(start.getBlockX(), end.getBlockX());
+            int maxX = Math.max(start.getBlockX(), end.getBlockX());
+            int minY = Math.min(start.getBlockY(), end.getBlockY());
+            int maxY = Math.max(start.getBlockY(), end.getBlockY());
+            int minZ = Math.min(start.getBlockZ(), end.getBlockZ());
+            int maxZ = Math.max(start.getBlockZ(), end.getBlockZ());
+
+            return loc.getBlockX() >= minX && loc.getBlockX() <= maxX &&
+                   loc.getBlockY() >= minY && loc.getBlockY() <= maxY &&
+                   loc.getBlockZ() >= minZ && loc.getBlockZ() <= maxZ;
+        }
+
+        Location center = station.getCenterLocation();
+        return center != null && center.getWorld().equals(loc.getWorld()) && center.distance(loc) <= 2.0;
+    }
+
+    public void unlockStation(int stationId) {
+        runningSlots.put(stationId, false);
     }
 }
