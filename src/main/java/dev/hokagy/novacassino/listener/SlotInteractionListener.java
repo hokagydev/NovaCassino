@@ -34,12 +34,20 @@ public class SlotInteractionListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        // Проверяем, что клик был именно рукой и именно по БЛОКУ
+        // Проверяем, что клик был именно правой рукой по БЛОКУ
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
 
         Block clickedBlock = event.getClickedBlock();
         if (clickedBlock == null) return;
+
+        // 🔥 ПРОВЕРКА: Проверяем, является ли кликнутый блок КНОПКОЙ или РЫЧАГОМ
+        String matName = clickedBlock.getType().name();
+        boolean isButtonOrLever = matName.endsWith("_BUTTON") || matName.endsWith("_LEVER") || matName.contains("BUTTON");
+
+        if (!isButtonOrLever) {
+            return; // Если это просто блок экрана, призов или каркаса — игнорируем!
+        }
 
         Player player = event.getPlayer();
 
@@ -49,8 +57,8 @@ public class SlotInteractionListener implements Listener {
                 continue;
             }
 
-            // Проверяем, что кликнули строго по блоку автомата/экрана
-            if (isBlockInStationArea(clickedBlock.getLocation(), station)) {
+            // 🔥 ПРОВЕРКА: Нажатая кнопка должна быть рядом с автоматом/экраном
+            if (isButtonNearStation(clickedBlock.getLocation(), station)) {
                 event.setCancelled(true);
 
                 // 1. Проверяем, запущен ли автомат прямо сейчас
@@ -81,14 +89,14 @@ public class SlotInteractionListener implements Listener {
                     VaultHook.getEconomy().withdrawPlayer(player, betAmount);
                 }
 
-                // Сообщение и звук успешного старта
+                // Сообщение и звук успеха
                 player.sendMessage(miniMessage.deserialize("<green>🎰 Ставка <gold>" + betAmount + "</gold> монет принята! Запуск автомата...</green>"));
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
 
                 // Очищаем активную ставку игрока
                 BetCommand.clearBet(player.getUniqueId());
 
-                // 4. ЗАПУСК АНИМАЦИИ С ПРАВИЛЬНЫМИ АРГУМЕНТАМИ
+                // 4. ЗАПУСК АНИМАЦИИ ВРАЩЕНИЯ
                 try {
                     Location displayStart = station.getDisplayStart() != null ? station.getDisplayStart() : station.getCenterLocation();
                     Location displayEnd = station.getDisplayEnd() != null ? station.getDisplayEnd() : station.getCenterLocation();
@@ -112,28 +120,29 @@ public class SlotInteractionListener implements Listener {
         }
     }
 
-    private boolean isBlockInStationArea(Location loc, CasinoStation station) {
+    /**
+     * Проверяет, находится ли кнопка в непосредственной близости от автомата
+     */
+    private boolean isButtonNearStation(Location buttonLoc, CasinoStation station) {
         Location start = station.getDisplayStart();
         Location end = station.getDisplayEnd();
 
-        if (start != null && end != null && start.getWorld().equals(loc.getWorld())) {
-            int minX = Math.min(start.getBlockX(), end.getBlockX());
-            int maxX = Math.max(start.getBlockX(), end.getBlockX());
-            int minY = Math.min(start.getBlockY(), end.getBlockY());
-            int maxY = Math.max(start.getBlockY(), end.getBlockY());
-            int minZ = Math.min(start.getBlockZ(), end.getBlockZ());
-            int maxZ = Math.max(start.getBlockZ(), end.getBlockZ());
+        // Если выделена область дисплея, проверяем дистанцию 1.8 блока от этой области
+        if (start != null && end != null && start.getWorld().equals(buttonLoc.getWorld())) {
+            int minX = Math.min(start.getBlockX(), end.getBlockX()) - 1;
+            int maxX = Math.max(start.getBlockX(), end.getBlockX()) + 1;
+            int minY = Math.min(start.getBlockY(), end.getBlockY()) - 1;
+            int maxY = Math.max(start.getBlockY(), end.getBlockY()) + 1;
+            int minZ = Math.min(start.getBlockZ(), end.getBlockZ()) - 1;
+            int maxZ = Math.max(start.getBlockZ(), end.getBlockZ()) + 1;
 
-            return loc.getBlockX() >= minX && loc.getBlockX() <= maxX &&
-                   loc.getBlockY() >= minY && loc.getBlockY() <= maxY &&
-                   loc.getBlockZ() >= minZ && loc.getBlockZ() <= maxZ;
+            return buttonLoc.getBlockX() >= minX && buttonLoc.getBlockX() <= maxX &&
+                   buttonLoc.getBlockY() >= minY && buttonLoc.getBlockY() <= maxY &&
+                   buttonLoc.getBlockZ() >= minZ && buttonLoc.getBlockZ() <= maxZ;
         }
 
-        // Если рамки экрана не выделены, проверяем точные координаты центрального блока
+        // Проверка по центральной точке автомата
         Location center = station.getCenterLocation();
-        return center != null && center.getWorld().equals(loc.getWorld()) &&
-               center.getBlockX() == loc.getBlockX() &&
-               center.getBlockY() == loc.getBlockY() &&
-               center.getBlockZ() == loc.getBlockZ();
+        return center != null && center.getWorld().equals(buttonLoc.getWorld()) && center.distance(buttonLoc) <= 2.5;
     }
 }
