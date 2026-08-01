@@ -34,7 +34,7 @@ public class SlotInteractionListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        // Проверяем, что клик был именно правой рукой по БЛОКУ
+        // Проверяем, что клик был именно рукой по БЛОКУ
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
 
@@ -57,7 +57,7 @@ public class SlotInteractionListener implements Listener {
                 continue;
             }
 
-            // 🔥 ПРОВЕРКА: Нажатая кнопка должна быть рядом с автоматом/экраном
+            // 🔥 ПРОВЕРКА: Нажатая кнопка должна быть в расширенном радиусе от автомата
             if (isButtonNearStation(clickedBlock.getLocation(), station)) {
                 event.setCancelled(true);
 
@@ -121,28 +121,28 @@ public class SlotInteractionListener implements Listener {
     }
 
     /**
-     * Проверяет, находится ли кнопка в непосредственной близости от автомата
+     * Проверяет, находится ли кнопка в увеличенном радиусе от автомата
      */
     private boolean isButtonNearStation(Location buttonLoc, CasinoStation station) {
         Location start = station.getDisplayStart();
         Location end = station.getDisplayEnd();
 
-        // Если выделена область дисплея, проверяем дистанцию 1.8 блока от этой области
+        // Увеличенный отступ от области экрана (+3 блока по X, Y, Z)
         if (start != null && end != null && start.getWorld().equals(buttonLoc.getWorld())) {
-            int minX = Math.min(start.getBlockX(), end.getBlockX()) - 1;
-            int maxX = Math.max(start.getBlockX(), end.getBlockX()) + 1;
-            int minY = Math.min(start.getBlockY(), end.getBlockY()) - 1;
-            int maxY = Math.max(start.getBlockY(), end.getBlockY()) + 1;
-            int minZ = Math.min(start.getBlockZ(), end.getBlockZ()) - 1;
-            int maxZ = Math.max(start.getBlockZ(), end.getBlockZ()) + 1;
+            int minX = Math.min(start.getBlockX(), end.getBlockX()) - 3;
+            int maxX = Math.max(start.getBlockX(), end.getBlockX()) + 3;
+            int minY = Math.min(start.getBlockY(), end.getBlockY()) - 3;
+            int maxY = Math.max(start.getBlockY(), end.getBlockY()) + 3;
+            int minZ = Math.min(start.getBlockZ(), end.getBlockZ()) - 3;
+            int maxZ = Math.max(start.getBlockZ(), end.getBlockZ()) + 3;
 
             return buttonLoc.getBlockX() >= minX && buttonLoc.getBlockX() <= maxX &&
                    buttonLoc.getBlockY() >= minY && buttonLoc.getBlockY() <= maxY &&
                    buttonLoc.getBlockZ() >= minZ && buttonLoc.getBlockZ() <= maxZ;
         }
 
-        // Проверка по центральной точке автомата
+        // Увеличенный радиус поиска (4.5 блока от центра автомата)
         Location center = station.getCenterLocation();
-        return center != null && center.getWorld().equals(buttonLoc.getWorld()) && center.distance(buttonLoc) <= 2.5;
+        return center != null && center.getWorld().equals(buttonLoc.getWorld()) && center.distance(buttonLoc) <= 4.5;
     }
 }
