@@ -116,6 +116,25 @@ public class CasinoManager {
         return station;
     }
 
+    /**
+     * Телепортирует станцию и её голограмму/энтити в новую локацию.
+     */
+    public boolean teleportStation(int id, Location newLoc) {
+        CasinoStation station = stations.get(id);
+        if (station == null) return false;
+
+        // Удаляем старые сущности/голограммы
+        station.remove();
+
+        // Если в CasinoStation поле centerLocation private, создаем обновленный объект:
+        CasinoStation updatedStation = new CasinoStation(plugin, station.getId(), station.getType(), newLoc, station.getRadius());
+        updatedStation.spawnAllEntities();
+
+        stations.put(id, updatedStation);
+        saveStations();
+        return true;
+    }
+
     public boolean deleteStation(int id) {
         if (stations.containsKey(id)) {
             CasinoStation station = stations.remove(id);
