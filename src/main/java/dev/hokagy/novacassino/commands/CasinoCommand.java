@@ -83,7 +83,7 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                         CasinoStation station = plugin.getCasinoManager().createStation(type, displayStart);
                         station.setDisplayStart(pos1);
                         station.setDisplayEnd(pos2);
-                        station.resetHologram();
+                        station.updateHologram(Component.text("🎰 СЛОТ-АВТОМАТ 🎰", NamedTextColor.GOLD, TextDecoration.BOLD));
                         plugin.getCasinoManager().saveStations();
 
                         player.sendMessage(Component.text("Игровой автомат #" + station.getId() + " (" + station.getType() + ") привязан к выделенной сетке!", NamedTextColor.GREEN));
@@ -91,8 +91,8 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                     } else if (type.equals("ROULETTE")) {
                         Location loc = player.getLocation();
                         CasinoStation station = plugin.getCasinoManager().createStation(type, loc);
-                        station.spawnRouletteRing(); // Заспавнить круг из маленьких блоков
-                        station.resetHologram();     // Заспавнить голограмму
+                        station.spawnRouletteRing();
+                        station.resetHologram();
                         plugin.getCasinoManager().saveStations();
 
                         player.sendMessage(Component.text("Станция казино #" + station.getId() + " (ROULETTE) создана!", NamedTextColor.GREEN));
@@ -178,7 +178,7 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                     CasinoStation st = plugin.getCasinoManager().getStation(id);
                     if (st != null) {
                         st.setRadius(radius);
-                        st.spawnRouletteRing(); // Обновить круг из маленьких блоков
+                        st.spawnRouletteRing();
                         plugin.getCasinoManager().saveStations();
                         sender.sendMessage(Component.text("Радиус станции #" + id + " изменен на " + radius, NamedTextColor.GREEN));
                     } else {
