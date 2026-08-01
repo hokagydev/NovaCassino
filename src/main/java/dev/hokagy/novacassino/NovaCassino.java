@@ -52,6 +52,7 @@ public final class NovaCassino extends JavaPlugin {
             getCommand("procasino").setTabCompleter(commandExecutor);
         }
 
+        // Регистрация команды /bet
         if (getCommand("bet") != null) {
             getCommand("bet").setExecutor(new BetCommand(this));
         }
