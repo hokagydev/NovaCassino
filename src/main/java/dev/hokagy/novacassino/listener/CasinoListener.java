@@ -57,7 +57,7 @@ public class CasinoListener implements Listener {
         return miniMessage.deserialize(msg);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         // 🔥 ФИКС ДВОЙНОГО СООБЩЕНИЯ/КЛИКА:
         if (event.getHand() != EquipmentSlot.HAND) {
@@ -67,7 +67,12 @@ public class CasinoListener implements Listener {
         Player player = event.getPlayer();
 
         for (CasinoStation station : plugin.getCasinoManager().getStations().values()) {
-            if (station.getCenterLocation().getWorld().equals(player.getWorld())) {
+            // ФИКС: Рулетка должна открывать меню ТОЛЬКО для станций типа ROULETTE
+            if (!"ROULETTE".equalsIgnoreCase(station.getType())) {
+                continue;
+            }
+
+            if (station.getCenterLocation() != null && station.getCenterLocation().getWorld().equals(player.getWorld())) {
                 if (station.getCenterLocation().distance(player.getLocation()) <= station.getRadius() + 1.5) {
                     if (event.getAction().name().contains("RIGHT_CLICK")) {
                         event.setCancelled(true);
@@ -90,6 +95,8 @@ public class CasinoListener implements Listener {
         Location center = station.getCenterLocation();
         double offset = plugin.getConfig().getDouble("station.detection_radius_offset", 2.0);
         int max = plugin.getConfig().getInt("station.max_players", 5);
+
+        if (center == null || center.getWorld() == null) return nearby;
 
         for (Player p : center.getWorld().getPlayers()) {
             if (p.getLocation().distance(center) <= station.getRadius() + offset) {
@@ -156,7 +163,9 @@ public class CasinoListener implements Listener {
 
         CasinoStation station = null;
         for (CasinoStation s : plugin.getCasinoManager().getStations().values()) {
-            if (s.getCenterLocation().getWorld().equals(player.getWorld()) &&
+            if ("ROULETTE".equalsIgnoreCase(s.getType()) &&
+                s.getCenterLocation() != null &&
+                s.getCenterLocation().getWorld().equals(player.getWorld()) &&
                 s.getCenterLocation().distance(player.getLocation()) <= s.getRadius() + 3.0) {
                 station = s;
                 break;
@@ -263,6 +272,8 @@ public class CasinoListener implements Listener {
         station.updateHologram(getMsg("hologram.solo_active", Map.of("player", player.getName(), "amount", String.valueOf(bet))));
 
         Location centerLoc = station.getCenterLocation();
+        if (centerLoc == null || centerLoc.getWorld() == null) return;
+
         ItemDisplay centerStar = centerLoc.getWorld().spawn(centerLoc.clone().add(0, 1.3, 0), ItemDisplay.class, display -> {
             display.setItemStack(new ItemStack(Material.NETHER_STAR));
             display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
@@ -325,6 +336,8 @@ public class CasinoListener implements Listener {
         station.updateHologram(getMsg("hologram.multi_active", Map.of("amount", String.valueOf(totalBank), "count", String.valueOf(participants.size()))));
 
         Location centerLoc = station.getCenterLocation();
+        if (centerLoc == null || centerLoc.getWorld() == null) return;
+
         ItemDisplay centerItem = centerLoc.getWorld().spawn(centerLoc.clone().add(0, 1.3, 0), ItemDisplay.class, display -> {
             display.setItemStack(new ItemStack(Material.DIAMOND));
             display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
