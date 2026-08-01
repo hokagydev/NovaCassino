@@ -9,3 +9,6 @@ commands:
     description: Главная команда плагина NovaCassino
     aliases: [novacassino]
     permission: procasino.command
+  bet:
+    description: Поставить сумму монет для автомата
+    usage: /bet <сумма>
