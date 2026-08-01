@@ -64,10 +64,34 @@ public class CasinoManager {
                 World world = Bukkit.getWorld(worldName);
                 if (world != null) {
                     Location loc = new Location(world, x, y, z);
-
                     CasinoStation station = new CasinoStation(plugin, id, type, loc, radius);
-                    
-                    // Загружаем и спавним сущности в мире (рулетка + голограмма)
+
+                    // Загрузка границ экрана (displayStart / displayEnd)
+                    if (section.contains(key + ".displayStart")) {
+                        double dsX = section.getDouble(key + ".displayStart.x");
+                        double dsY = section.getDouble(key + ".displayStart.y");
+                        double dsZ = section.getDouble(key + ".displayStart.z");
+                        station.setDisplayStart(new Location(world, dsX, dsY, dsZ));
+                    }
+
+                    if (section.contains(key + ".displayEnd")) {
+                        double deX = section.getDouble(key + ".displayEnd.x");
+                        double deY = section.getDouble(key + ".displayEnd.y");
+                        double deZ = section.getDouble(key + ".displayEnd.z");
+                        station.setDisplayEnd(new Location(world, deX, deY, deZ));
+                    }
+
+                    // Загрузка кастомной позиции голограммы
+                    if (section.contains(key + ".hologram")) {
+                        double hX = section.getDouble(key + ".hologram.x");
+                        double hY = section.getDouble(key + ".hologram.y");
+                        double hZ = section.getDouble(key + ".hologram.z");
+                        float yaw = (float) section.getDouble(key + ".hologram.yaw", 0);
+                        float pitch = (float) section.getDouble(key + ".hologram.pitch", 0);
+                        station.setHologramLocation(new Location(world, hX, hY, hZ, yaw, pitch));
+                    }
+
+                    // Загружаем и спавним сущности в мире
                     station.spawnAllEntities();
 
                     stations.put(id, station);
@@ -88,12 +112,33 @@ public class CasinoManager {
         for (CasinoStation station : stations.values()) {
             String path = "stations." + station.getId();
             if (station.getCenterLocation() == null || station.getCenterLocation().getWorld() == null) continue;
+            
             stationsConfig.set(path + ".type", station.getType());
             stationsConfig.set(path + ".world", station.getCenterLocation().getWorld().getName());
             stationsConfig.set(path + ".x", station.getCenterLocation().getX());
             stationsConfig.set(path + ".y", station.getCenterLocation().getY());
             stationsConfig.set(path + ".z", station.getCenterLocation().getZ());
             stationsConfig.set(path + ".radius", station.getRadius());
+
+            if (station.getDisplayStart() != null) {
+                stationsConfig.set(path + ".displayStart.x", station.getDisplayStart().getX());
+                stationsConfig.set(path + ".displayStart.y", station.getDisplayStart().getY());
+                stationsConfig.set(path + ".displayStart.z", station.getDisplayStart().getZ());
+            }
+
+            if (station.getDisplayEnd() != null) {
+                stationsConfig.set(path + ".displayEnd.x", station.getDisplayEnd().getX());
+                stationsConfig.set(path + ".displayEnd.y", station.getDisplayEnd().getY());
+                stationsConfig.set(path + ".displayEnd.z", station.getDisplayEnd().getZ());
+            }
+
+            if (station.getHologramLocation() != null) {
+                stationsConfig.set(path + ".hologram.x", station.getHologramLocation().getX());
+                stationsConfig.set(path + ".hologram.y", station.getHologramLocation().getY());
+                stationsConfig.set(path + ".hologram.z", station.getHologramLocation().getZ());
+                stationsConfig.set(path + ".hologram.yaw", station.getHologramLocation().getYaw());
+                stationsConfig.set(path + ".hologram.pitch", station.getHologramLocation().getPitch());
+            }
         }
 
         try {
@@ -117,20 +162,15 @@ public class CasinoManager {
     }
 
     /**
-     * Телепортирует станцию и её голограмму/энтити в новую локацию.
+     * Перемещает ТОЛЬКО голограмму станции в указанную точку, не затрагивая экраны и анимации.
      */
-    public boolean teleportStation(int id, Location newLoc) {
+    public boolean moveHologram(int id, Location newLoc) {
         CasinoStation station = stations.get(id);
         if (station == null) return false;
 
-        // Удаляем старые сущности/голограммы
-        station.remove();
+        station.setHologramLocation(newLoc);
+        station.resetHologram();
 
-        // Если в CasinoStation поле centerLocation private, создаем обновленный объект:
-        CasinoStation updatedStation = new CasinoStation(plugin, station.getId(), station.getType(), newLoc, station.getRadius());
-        updatedStation.spawnAllEntities();
-
-        stations.put(id, updatedStation);
         saveStations();
         return true;
     }
