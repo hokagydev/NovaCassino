@@ -42,7 +42,6 @@ public class CasinoManager {
     }
 
     public void loadStations() {
-        // Удаляем старые физические энтити из мира перед полной перезагрузкой
         removeAllEntities();
         stations.clear();
 
@@ -66,7 +65,6 @@ public class CasinoManager {
                     Location loc = new Location(world, x, y, z);
                     CasinoStation station = new CasinoStation(plugin, id, type, loc, radius);
 
-                    // Загрузка границ экрана (displayStart / displayEnd)
                     if (section.contains(key + ".displayStart")) {
                         double dsX = section.getDouble(key + ".displayStart.x");
                         double dsY = section.getDouble(key + ".displayStart.y");
@@ -81,7 +79,6 @@ public class CasinoManager {
                         station.setDisplayEnd(new Location(world, deX, deY, deZ));
                     }
 
-                    // Загрузка кастомной позиции голограммы
                     if (section.contains(key + ".hologram")) {
                         double hX = section.getDouble(key + ".hologram.x");
                         double hY = section.getDouble(key + ".hologram.y");
@@ -91,9 +88,7 @@ public class CasinoManager {
                         station.setHologramLocation(new Location(world, hX, hY, hZ, yaw, pitch));
                     }
 
-                    // Загружаем и спавним сущности в мире
                     station.spawnAllEntities();
-
                     stations.put(id, station);
                 }
             } catch (Exception e) {
@@ -153,7 +148,6 @@ public class CasinoManager {
         double radius = plugin.getConfig().getDouble("station.radius", 3.5);
         CasinoStation station = new CasinoStation(plugin, id, type, loc, radius);
         
-        // Спавним сущности при создании новой станции
         station.spawnAllEntities();
 
         stations.put(id, station);
@@ -161,15 +155,13 @@ public class CasinoManager {
         return station;
     }
 
-    /**
-     * Перемещает ТОЛЬКО голограмму станции в указанную точку, не затрагивая экраны и анимации.
-     */
     public boolean moveHologram(int id, Location newLoc) {
         CasinoStation station = stations.get(id);
         if (station == null) return false;
 
         station.setHologramLocation(newLoc);
-        station.resetHologram();
+        // Вызываем обновление позиции с сохранением прежнего текста
+        station.refreshHologramPosition();
 
         saveStations();
         return true;
