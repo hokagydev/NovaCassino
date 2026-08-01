@@ -3,6 +3,7 @@ package dev.hokagy.novacassino.listener;
 import dev.hokagy.novacassino.NovaCassino;
 import dev.hokagy.novacassino.command.BetCommand;
 import dev.hokagy.novacassino.hook.VaultHook;
+import dev.hokagy.novacassino.machine.SlotsAnimation;
 import dev.hokagy.novacassino.model.CasinoStation;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Location;
@@ -12,6 +13,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
@@ -32,9 +34,9 @@ public class SlotInteractionListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) {
-            return;
-        }
+        // Проверяем, что клик был именно правой или левой кнопкой по БЛОКУ (не по воздуху)
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
 
         Block clickedBlock = event.getClickedBlock();
         if (clickedBlock == null) return;
@@ -47,17 +49,18 @@ public class SlotInteractionListener implements Listener {
                 continue;
             }
 
+            // Проверяем, что нажали ровно на блок экрана/автомата
             if (isBlockInStationArea(clickedBlock.getLocation(), station)) {
                 event.setCancelled(true);
 
-                // Проверяем, запущен ли автомат прямо сейчас
+                // 1. Проверяем, запущен ли автомат прямо сейчас
                 if (spinningStations.contains(station.getId())) {
                     player.sendMessage(miniMessage.deserialize("<red>Этот автомат уже крутится! Подождите завершения.</red>"));
                     player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                     return;
                 }
 
-                // 1. Проверяем, введена ли ставка командой /bet
+                // 2. Проверяем, введена ли ставка командой /bet
                 if (!BetCommand.hasBet(player.getUniqueId())) {
                     player.sendMessage(miniMessage.deserialize("<red>❌ Сначала укажите сумму ставки командой: <yellow>/bet <сумма></yellow></red>"));
                     player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
@@ -66,7 +69,7 @@ public class SlotInteractionListener implements Listener {
 
                 double betAmount = BetCommand.getBet(player.getUniqueId());
 
-                // 2. Проверяем баланс игрока через Vault
+                // 3. Проверяем баланс игрока через Vault
                 if (VaultHook.hasEconomy()) {
                     if (VaultHook.getEconomy().getBalance(player) < betAmount) {
                         player.sendMessage(miniMessage.deserialize("<red>У вас недостаточно средств! Требуется: <gold>" + betAmount + "</gold> монет.</red>"));
@@ -78,15 +81,23 @@ public class SlotInteractionListener implements Listener {
                     VaultHook.getEconomy().withdrawPlayer(player, betAmount);
                 }
 
-                // 3. Запуск автомата
+                // Сообщение и звук успеха
                 player.sendMessage(miniMessage.deserialize("<green>🎰 Ставка <gold>" + betAmount + "</gold> монет принята! Запуск автомата...</green>"));
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
 
-                // Очищаем ставку игрока после использования
+                // Очищаем ставку игрока
                 BetCommand.clearBet(player.getUniqueId());
 
-                // TODO: Здесь вызывается твоя функция старта анимации вращения слотов,
-                // которая сама добавит station.getId() в spinningStations и удалит по окончании.
+                // 4. ЗАПУСК АНИМАЦИИ
+                // Запускаем спин анимации для этого автомата и игрока с выбранной ставкой
+                try {
+                    SlotsAnimation animation = new SlotsAnimation(plugin, station, player, betAmount);
+                    animation.start(); 
+                } catch (Exception e) {
+                    // Если у тебя запуск происходит через другой метод или конструктор:
+                    plugin.getLogger().warning("Ошибка при запуске анимации слота: " + e.getMessage());
+                    spinningStations.remove(station.getId());
+                }
 
                 break;
             }
@@ -110,7 +121,11 @@ public class SlotInteractionListener implements Listener {
                    loc.getBlockZ() >= minZ && loc.getBlockZ() <= maxZ;
         }
 
+        // Если выделенной сетки блоков нет, проверяем точный блок центральной локации
         Location center = station.getCenterLocation();
-        return center != null && center.getWorld().equals(loc.getWorld()) && center.distance(loc) <= 2.0;
+        return center != null && center.getWorld().equals(loc.getWorld()) && 
+               center.getBlockX() == loc.getBlockX() && 
+               center.getBlockY() == loc.getBlockY() && 
+               center.getBlockZ() == loc.getBlockZ();
     }
 }
