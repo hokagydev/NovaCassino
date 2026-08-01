@@ -1,8 +1,7 @@
 package dev.hokagy.novacassino.command;
 
 import dev.hokagy.novacassino.NovaCassino;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -17,8 +16,10 @@ import java.util.UUID;
 public class BetCommand implements CommandExecutor {
 
     private final NovaCassino plugin;
-    // Хранилище активных ставок игроков (UUID игрока -> Сумма ставки)
-    private static final Map<UUID, Double> activeBets = new HashMap<>();
+    private final MiniMessage miniMessage = MiniMessage.miniMessage();
+
+    // Хранилище активных ставок игроков (UUID игрока -> Сумма)
+    private static final Map<UUID, Double> playerBets = new HashMap<>();
 
     public BetCommand(NovaCassino plugin) {
         this.plugin = plugin;
@@ -27,57 +28,45 @@ public class BetCommand implements CommandExecutor {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Команда только для игроков!", NamedTextColor.RED));
+            sender.sendMessage(miniMessage.deserialize("<red>Команда доступна только для игроков!</red>"));
             return true;
         }
 
         if (args.length < 1) {
-            player.sendMessage(Component.text("Использование: /bet <сумма>", NamedTextColor.RED));
+            player.sendMessage(miniMessage.deserialize("<red>Использование: /bet <сумма></red>"));
             return true;
         }
 
         try {
             double amount = Double.parseDouble(args[0]);
+            double minBet = plugin.getConfig().getDouble("custom_bet.min", 10.0);
+            double maxBet = plugin.getConfig().getDouble("custom_bet.max", 100000.0);
 
-            if (amount <= 0) {
-                player.sendMessage(Component.text("Ставка должна быть больше 0!", NamedTextColor.RED));
+            if (amount < minBet || amount > maxBet) {
+                player.sendMessage(miniMessage.deserialize("<red>Ставка должна быть от <gold>" + minBet + "</gold> до <gold>" + maxBet + "</gold> монет!</red>"));
                 return true;
             }
 
-            // Запоминаем ставку игрока
-            activeBets.put(player.getUniqueId(), amount);
-            
-            player.sendMessage(Component.text("Ставка ", NamedTextColor.GREEN)
-                    .append(Component.text(amount + " монеток ", NamedTextColor.GOLD))
-                    .append(Component.text("успешно установлена! Нажмите на любой автомат для игры.", NamedTextColor.GREEN)));
-            
+            playerBets.put(player.getUniqueId(), amount);
+            player.sendMessage(miniMessage.deserialize("<green>Ставка <gold>" + amount + "</gold> монет успешно выбрана! Теперь нажмите на слот-автомат для игры.</green>"));
             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
 
         } catch (NumberFormatException e) {
-            player.sendMessage(Component.text("Укажите корректное число!", NamedTextColor.RED));
+            player.sendMessage(miniMessage.deserialize("<red>Укажите корректное число!</red>"));
         }
 
         return true;
     }
 
-    /**
-     * Получить текущую выбранную ставку игрока.
-     */
     public static double getBet(UUID playerUuid) {
-        return activeBets.getOrDefault(playerUuid, 0.0);
+        return playerBets.getOrDefault(playerUuid, 0.0);
     }
 
-    /**
-     * Проверить, сделана ли ставка.
-     */
     public static boolean hasBet(UUID playerUuid) {
-        return activeBets.containsKey(playerUuid) && activeBets.get(playerUuid) > 0;
+        return playerBets.containsKey(playerUuid) && playerBets.get(playerUuid) > 0;
     }
 
-    /**
-     * Сбросить ставку (вызывается после того, как автомат прокрутился).
-     */
     public static void clearBet(UUID playerUuid) {
-        activeBets.remove(playerUuid);
+        playerBets.remove(playerUuid);
     }
 }
