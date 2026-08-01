@@ -131,6 +131,22 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
                         player.sendMessage(Component.text("Станция не найдена!", NamedTextColor.RED));
                     }
                 }
+                case "movehere" -> {
+                    if (!(sender instanceof Player player)) return onlyPlayers(sender);
+                    if (!hasPermission(player, "procasino.command.movehere")) return true;
+                    if (args.length < 2) {
+                        player.sendMessage(Component.text("Использование: /procasino movehere <id>", NamedTextColor.RED));
+                        return true;
+                    }
+                    int id = Integer.parseInt(args[1]);
+                    boolean success = plugin.getCasinoManager().teleportStation(id, player.getLocation());
+
+                    if (success) {
+                        player.sendMessage(Component.text("Голограмма и станция #" + id + " перемещены к вам!", NamedTextColor.GREEN));
+                    } else {
+                        player.sendMessage(Component.text("Станция #" + id + " не найдена!", NamedTextColor.RED));
+                    }
+                }
                 case "list" -> {
                     if (!hasPermission(sender, "procasino.command.list")) return true;
                     sender.sendMessage(Component.text("--- Список станций NovaCassino ---", NamedTextColor.GOLD, TextDecoration.BOLD));
@@ -189,6 +205,7 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text("/procasino add <тип> ", NamedTextColor.YELLOW).append(Component.text("- Создать станцию (ROULETTE / SLOTS)", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/procasino delete <id> ", NamedTextColor.YELLOW).append(Component.text("- Удалить станцию", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/procasino teleport <id> ", NamedTextColor.YELLOW).append(Component.text("- Телепорт к станции", NamedTextColor.GRAY)));
+        sender.sendMessage(Component.text("/procasino movehere <id> ", NamedTextColor.YELLOW).append(Component.text("- Переместить голограмму к себе", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/procasino list ", NamedTextColor.YELLOW).append(Component.text("- Список станций", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/procasino set <id> radius <радиус> ", NamedTextColor.YELLOW).append(Component.text("- Изменить радиус", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/procasino reload ", NamedTextColor.YELLOW).append(Component.text("- Перезагрузка конфигов", NamedTextColor.GRAY)));
@@ -211,14 +228,14 @@ public class CasinoCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return filterCompletions(List.of("help", "about", "wand", "add", "delete", "teleport", "list", "set", "reload"), args[0]);
+            return filterCompletions(List.of("help", "about", "wand", "add", "delete", "teleport", "movehere", "list", "set", "reload"), args[0]);
         }
 
         if (args.length == 2) {
             if (args[0].equalsIgnoreCase("add")) {
                 return filterCompletions(List.of("ROULETTE", "SLOTS"), args[1]);
             }
-            if (args[0].equalsIgnoreCase("delete") || args[0].equalsIgnoreCase("teleport") || args[0].equalsIgnoreCase("set")) {
+            if (args[0].equalsIgnoreCase("delete") || args[0].equalsIgnoreCase("teleport") || args[0].equalsIgnoreCase("movehere") || args[0].equalsIgnoreCase("set")) {
                 List<String> ids = plugin.getCasinoManager().getStations().keySet().stream().map(String::valueOf).collect(Collectors.toList());
                 return filterCompletions(ids, args[1]);
             }
