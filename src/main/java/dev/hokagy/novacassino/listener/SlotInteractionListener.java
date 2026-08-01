@@ -15,16 +15,16 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 public class SlotInteractionListener implements Listener {
 
     private final NovaCassino plugin;
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
 
-    // Защита от частых кликов / повторных запусков на станциях
-    private final Map<Integer, Boolean> runningSlots = new HashMap<>();
+    // Публичный сет для отслеживания работающих автоматов (используется в SlotsAnimation и SlotMachineTask)
+    public static final Set<Integer> spinningStations = new HashSet<>();
 
     public SlotInteractionListener(NovaCassino plugin) {
         this.plugin = plugin;
@@ -50,7 +50,8 @@ public class SlotInteractionListener implements Listener {
             if (isBlockInStationArea(clickedBlock.getLocation(), station)) {
                 event.setCancelled(true);
 
-                if (runningSlots.getOrDefault(station.getId(), false)) {
+                // Проверяем, запущен ли автомат прямо сейчас
+                if (spinningStations.contains(station.getId())) {
                     player.sendMessage(miniMessage.deserialize("<red>Этот автомат уже крутится! Подождите завершения.</red>"));
                     player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                     return;
@@ -77,19 +78,15 @@ public class SlotInteractionListener implements Listener {
                     VaultHook.getEconomy().withdrawPlayer(player, betAmount);
                 }
 
-                // 3. Запуск спина автомата
+                // 3. Запуск автомата
                 player.sendMessage(miniMessage.deserialize("<green>🎰 Ставка <gold>" + betAmount + "</gold> монет принята! Запуск автомата...</green>"));
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
 
                 // Очищаем ставку игрока после использования
                 BetCommand.clearBet(player.getUniqueId());
 
-                // Блокируем автомат на время работы
-                runningSlots.put(station.getId(), true);
-
-                // TODO: Вызов твоей анимации прокрутки барабанов/экрана слотов!
-                // Пример сброса блокировки:
-                // resetSlotStatusLater(station.getId(), 80L);
+                // TODO: Здесь вызывается твоя функция старта анимации вращения слотов,
+                // которая сама добавит station.getId() в spinningStations и удалит по окончании.
 
                 break;
             }
@@ -115,9 +112,5 @@ public class SlotInteractionListener implements Listener {
 
         Location center = station.getCenterLocation();
         return center != null && center.getWorld().equals(loc.getWorld()) && center.distance(loc) <= 2.0;
-    }
-
-    public void unlockStation(int stationId) {
-        runningSlots.put(stationId, false);
     }
 }
