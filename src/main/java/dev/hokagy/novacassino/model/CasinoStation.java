@@ -12,9 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * Модель игровой станции (слоты / рулетка).
- */
 public class CasinoStation {
 
     private final NovaCassino plugin;
@@ -26,6 +23,9 @@ public class CasinoStation {
     private Location displayStart;
     private Location displayEnd;
     private Location hologramLocation;
+
+    // Сохраняем текущий текст голограммы, чтобы он не сбрасывался при телепорте
+    private Component currentHologramText;
 
     private final List<ArmorStand> rouletteStands = new CopyOnWriteArrayList<>();
     private ArmorStand hologramStand;
@@ -65,21 +65,18 @@ public class CasinoStation {
         return rouletteStands;
     }
 
-    /**
-     * Полный спавн всех элементов станции в мире.
-     * Запускается при старте сервера / создании / перезагрузке.
-     */
     public void spawnAllEntities() {
-        remove(); // Предварительно очищаем старые сущности, чтобы не было дублирования
+        remove();
         if ("ROULETTE".equalsIgnoreCase(type)) {
             spawnRouletteRing();
         }
-        resetHologram();
+        if (currentHologramText != null) {
+            spawnHologram(currentHologramText);
+        } else {
+            resetHologram();
+        }
     }
 
-    /**
-     * Создаёт круг маленьких ArmorStand с "блоками" на голове.
-     */
     public void spawnRouletteRing() {
         removeRouletteRing();
 
@@ -106,8 +103,8 @@ public class CasinoStation {
                 stand.setGravity(false);
                 stand.setCanPickupItems(false);
                 stand.setVisible(false);
-                stand.setSmall(true);    // опускаем блок
-                stand.setMarker(true);   // убираем хитбокс
+                stand.setSmall(true);
+                stand.setMarker(true);
                 stand.setInvulnerable(true);
 
                 Material headMaterial = (i == 0) ? zeroMat : (i % 2 == 0 ? evenMat : oddMat);
@@ -122,9 +119,6 @@ public class CasinoStation {
         }
     }
 
-    /**
-     * Безопасное удаление всех стоек кольца рулетки.
-     */
     public void removeRouletteRing() {
         for (ArmorStand stand : new ArrayList<>(rouletteStands)) {
             try {
@@ -137,22 +131,15 @@ public class CasinoStation {
     }
 
     /**
-     * Обновляет текст голограммы.
+     * Обновляет текст и гарантирует спавн/перемещение голограммы.
      */
     public void updateHologram(Component text) {
-        if (hologramStand == null || !hologramStand.isValid()) {
-            spawnHologram(text);
-        } else {
-            try {
-                hologramStand.customName(text);
-            } catch (Exception ex) {
-                plugin.getLogger().warning("Не удалось обновить голограмму: " + ex.getMessage());
-            }
-        }
+        this.currentHologramText = text;
+        spawnHologram(text);
     }
 
     /**
-     * Сбрасывает голограмму на дефолтные строки из messages.yml.
+     * Перезагружает текст голограммы на дефолтный из конфига.
      */
     public void resetHologram() {
         List<String> lines;
@@ -163,7 +150,11 @@ public class CasinoStation {
         }
 
         if (lines == null || lines.isEmpty()) {
-            lines = List.of("<aqua><bold>Casino</bold></aqua>", "<white>Кликните чтобы сделать ставку!</white>", "<gold>Ожидание игроков...</gold>");
+            if ("SLOTS".equalsIgnoreCase(type)) {
+                lines = List.of("<gold><bold>🎰 СЛОТ-АВТОМАТ 🎰</bold></gold>", "<white>Кликните чтобы играть!</white>");
+            } else {
+                lines = List.of("<aqua><bold>🎰 РУЛЕТКА 🎰</bold></aqua>", "<white>Кликните чтобы сделать ставку!</white>");
+            }
         }
 
         Component hologramText = Component.empty();
@@ -179,7 +170,7 @@ public class CasinoStation {
     }
 
     /**
-     * Создаёт голограмму (ArmorStand с кастомным именем).
+     * Переспавнивает энтити голограммы в правильной локации.
      */
     private void spawnHologram(Component text) {
         if (centerLocation == null || centerLocation.getWorld() == null) return;
@@ -193,9 +184,11 @@ public class CasinoStation {
         }
 
         try {
+            // Обязательно удаляем старую стойку при любом переспавне
             if (hologramStand != null && hologramStand.isValid()) {
                 hologramStand.remove();
             }
+            
             hologramStand = holoLoc.getWorld().spawn(holoLoc, ArmorStand.class);
             hologramStand.setGravity(false);
             hologramStand.setCanPickupItems(false);
@@ -210,9 +203,14 @@ public class CasinoStation {
         }
     }
 
-    /**
-     * Полное удаление всех сущностей, связанных со станцией.
-     */
+    public void refreshHologramPosition() {
+        if (currentHologramText != null) {
+            spawnHologram(currentHologramText);
+        } else {
+            resetHologram();
+        }
+    }
+
     public void remove() {
         removeRouletteRing();
         try {
